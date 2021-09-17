@@ -46,9 +46,12 @@ class operator:
     GE = 7
     
 # TODO: refactor so that it can send commands with arguments 
-def request(sock, command, table_nr=0):
+def request(sock, command=1, table_nr=0):
     # sending struct request to server
-    buf = struct.pack("!ii", command, table_nr)
+    # buf = struct.pack("!ii", command, table_nr)
+    # sock.send(buf)
+    buf = struct.pack("!iiiii4sii4siidiiQ", 1, 1, 4,  3, 4, 'adel'.encode(),  3, 4, 'aswd'.encode(),  2, 8, 62.0,  1, 8, 23)
+    print(struct.unpack("!iiiii4sii4siidiiQ", buf))
     sock.send(buf)
     
 # TODO: refactor so that it can receive response with arguments

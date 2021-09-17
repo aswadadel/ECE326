@@ -45,7 +45,7 @@ class Database:
 
     def insert(self, table_name, values):
         # TODO: implement me
-        pass
+        request(self._socket)
 
     def update(self, table_name, pk, values, version=None):
         # TODO: implement me
