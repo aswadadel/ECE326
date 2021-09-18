@@ -6,8 +6,9 @@
 #
 
 import socket
+from struct import pack
 from typing import Dict
-from .packet import EXIT, OK, SERVER_BUSY, request, response
+from .packet import EXIT, INSERT, OK, SERVER_BUSY, request, response
 from .exception import IntegrityError, PacketError
 import re
 
@@ -75,7 +76,9 @@ class Database:
 
     def __str__(self):
         tables = self._tables
+        # used to prettify printing for primitive types
         typesDict = {str: 'string', int: 'integer', float: 'float'}
+        # the string returned by function
         tablesString = ''
         for table in tables:
             tablesString+="%s {\n"%(table[0])
@@ -88,8 +91,21 @@ class Database:
         return tablesString
 
     def insert(self, table_name, values):
-        # TODO: implement me
-        request(self._socket)
+        tables = self._tables
+        tableNumber = None
+        if not isinstance(table_name, str):
+            raise PacketError()
+        for index, table in enumerate(tables):
+            if table[0] == table_name:
+                tableNumber = index
+                break
+        if tableNumber is None or len(values) != len(tables[tableNumber][1]):
+            raise PacketError()
+        for index, column in enumerate(tables[tableNumber][1]):
+            if (isinstance(column[1], str) and not isinstance(values[index])) \
+                 or isinstance(values[index], column[1]):
+                raise PacketError()
+        request(self._socket, INSERT, tableNumber)
 
     def update(self, table_name, pk, values, version=None):
         # TODO: implement me
