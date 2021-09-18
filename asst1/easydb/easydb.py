@@ -6,6 +6,7 @@
 #
 
 import socket
+from typing import Dict
 from .packet import EXIT, OK, SERVER_BUSY, request, response
 from .exception import IntegrityError, PacketError
 import re
@@ -16,12 +17,11 @@ class Database:
 
     def __init__(self, tables):    
         self._socket = None
-        self._tables = set()
+        # self._tables = set()
         try:
-            iterator = iter(tables)
+            iter(tables)
         except:
             raise TypeError()
-        # try:
         # used to check if foreign key columns refer to existing tables
         tableNames = set()
         # used to check for duplicate column names
@@ -41,22 +41,15 @@ class Database:
                     raise TypeError()
                 if not re.match(r"[a-zA-Z][a-zA-Z0-9_]*", column[0]) or column[0] == 'id':
                     raise ValueError()
-                # check if column value is set to str, int, float, or a string
+                # check if column value is set to str, int, float, or a foreign key, and is not a duplicate
                 if column[0] in columnNames \
                     or (column[1] not in (str,float,int) and not isinstance(column[1], str)):  
                     raise ValueError()
+                # check if the foreign key exists and is not self-referencing
                 if isinstance(column[1], str) and (column[1] not in tableNames or column[1] == table[0]):
                     raise IntegrityError()
                 columnNames.add(column[0])
-        # except TypeError:
-        #     print("TypeError")
-        # except ValueError:
-        #     print("ValueError")
-        # except IntegrityError:
-        #     print("IntegrityError")
-        # except:
-        #     print("IndexError")
-                
+        self._tables = tables
         
     def connect(self, host, port):
         assert(self._socket is None)
@@ -81,8 +74,18 @@ class Database:
         self._socket = None
 
     def __str__(self):
-        # TODO: implement me
-        return ""
+        tables = self._tables
+        typesDict = {str: 'string', int: 'integer', float: 'float'}
+        tablesString = ''
+        for table in tables:
+            tablesString+="%s {\n"%(table[0])
+            for column in table[1]:
+                columnType = column[1]
+                if column[1] in typesDict:
+                    columnType = typesDict[column[1]]
+                tablesString += "%s: %s;\n"%(column[0],  columnType)
+            tablesString+='}\n'
+        return tablesString
 
     def insert(self, table_name, values):
         # TODO: implement me
