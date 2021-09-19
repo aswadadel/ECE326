@@ -5,7 +5,9 @@
 # Definition for all the packet-related constants and classes in EasyDB
 #
 
+from easydb.exception import InvalidReference, ObjectDoesNotExist, PacketError, TransactionAbort
 import struct
+import math
 
 # request commands
 INSERT = 1
@@ -45,6 +47,14 @@ class operator:
     LE = 6  # you do not have to implement the following two
     GE = 7
 
+responseCodeErrors = {
+    NOT_FOUND: ObjectDoesNotExist,
+    BAD_FOREIGN: InvalidReference,
+    TXN_ABORT: TransactionAbort,
+}
+responseCodeErrors.update(dict.fromkeys(\
+    [BAD_QUERY, BAD_REQUEST, BAD_ROW, BAD_TABLE, BAD_VALUE], PacketError))
+
 columnDict = {
     int:INTEGER,
     float: FLOAT,
@@ -54,7 +64,7 @@ columnDict = {
 def insertReq(tableNumber, columns=None, values=None):
     request = struct.pack("!ii", INSERT, tableNumber)
     count = struct.pack("!i", len(columns))
-    row = list()
+    rows = list()
     for index, column in enumerate(columns):
         typePack = FOREIGN
         sizePack = 8
@@ -68,12 +78,13 @@ def insertReq(tableNumber, columns=None, values=None):
                 typeSymbol = 'd'
             elif typePack == STRING:
                 size =len(values[index]) 
-                padding = size - size%4
-                typeSymbol = "%ds"%(size) + "%dx"%(padding) if padding != 0 else ''
+                padding =  (4-size%4)%4 
+                typeSymbol = "%ds"%(size) + ("%dx"%(padding) if padding != 0 else '')
                 sizePack = size + padding 
                 valuePack = values[index].encode()
-        row.append(struct.pack("!ii%s"%(typeSymbol), typePack, sizePack, valuePack))
-    return b''.join([request, count, b''.join(row)])
+        # print("!ii%s"%(typeSymbol), typePack, sizePack, valuePack)
+        rows.append(struct.pack("!ii%s"%(typeSymbol), typePack, sizePack, valuePack))
+    return b''.join([request, count, b''.join(rows)])
 
 switcher = {
     1: insertReq
@@ -82,17 +93,19 @@ switcher = {
 # TODO: refactor so that it can send commands with arguments 
 def request(sock, command=1, table_nr=0, **kwargs):
     # sending struct request to server
-    # buf = struct.pack("!ii", command, table_nr)
-    # sock.send(buf)
     req = switcher[command]
     return sock.send(req(table_nr, **kwargs))
-    buf = struct.pack("!iiiii4sii4siidiiQ", 1, 1, 4,  3, 4, 'adel'.encode(),  3, 4, 'aswd'.encode(),  2, 8, 62.0,  1, 8, 23)
-    print(struct.unpack("!iiiii4sii4siidiiQ", buf))
-    sock.send(buf)
     
 # TODO: refactor so that it can receive response with arguments
-def response(sock):
+def response(sock, command=0):
     # expecting struct response, which is 4 bytes
-    buf = sock.recv(4)
-    return struct.unpack("!i", buf)[0]
-
+    responseCode = struct.unpack("!i", sock.recv(4))[0]
+    if responseCode != OK:
+        raise responseCodeErrors[responseCode]()
+    if command == INSERT:
+        bufPack = 'QQ'
+        bufSize = 16
+        buffer = sock.recv(bufSize)
+        pk, version = struct.unpack("!%s"%(bufPack), buffer)
+        return pk, version
+    return responseCode

@@ -104,13 +104,10 @@ class Database:
             raise PacketError()
         for index, column in enumerate(tables[tableIndex][1]):
             if (isinstance(column[1], str) and not isinstance(values[index], int)) \
-                 or (not isinstance(column[1], str) and not isinstance(values[index], column[1])):
+                or (not isinstance(column[1], str) and not isinstance(values[index], column[1])):
                 raise PacketError()
-        # for value in values:
-        #     if not isinstance(value, (str, int, float)):
-        #         raise PacketError()
         request(self._socket, INSERT, table_nr=tableIndex+1, columns=tables[tableIndex][1], values=values)
-        return 1,1
+        return response(self._socket, INSERT)
 
     def update(self, table_name, pk, values, version=None):
         # TODO: implement me
