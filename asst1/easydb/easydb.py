@@ -93,20 +93,23 @@ class Database:
 
     def insert(self, table_name, values):
         tables = self._tables
-        tableNumber = None
+        tableIndex = None
         if not isinstance(table_name, str):
             raise PacketError()
         for index, table in enumerate(tables):
             if table[0] == table_name:
-                tableNumber = index
+                tableIndex = index
                 break
-        if tableNumber is None or len(values) != len(tables[tableNumber][1]):
+        if tableIndex is None or len(values) != len(tables[tableIndex][1]):
             raise PacketError()
-        for index, column in enumerate(tables[tableNumber][1]):
+        for index, column in enumerate(tables[tableIndex][1]):
             if (isinstance(column[1], str) and not isinstance(values[index], int)) \
                  or (not isinstance(column[1], str) and not isinstance(values[index], column[1])):
                 raise PacketError()
-        request(self._socket, INSERT, tableNumber+1)
+        # for value in values:
+        #     if not isinstance(value, (str, int, float)):
+        #         raise PacketError()
+        request(self._socket, INSERT, table_nr=tableIndex+1, columns=tables[tableIndex][1], values=values)
         return 1,1
 
     def update(self, table_name, pk, values, version=None):

@@ -44,12 +44,48 @@ class operator:
     GT = 5  # greater than 
     LE = 6  # you do not have to implement the following two
     GE = 7
+
+columnDict = {
+    int:INTEGER,
+    float: FLOAT,
+    str:STRING,
+}
+
+def insertReq(tableNumber, columns=None, values=None):
+    request = struct.pack("!ii", INSERT, tableNumber)
+    count = struct.pack("!i", len(columns))
+    row = list()
+    for index, column in enumerate(columns):
+        typePack = FOREIGN
+        sizePack = 8
+        valuePack = values[index]
+        typeSymbol = 'Q'
+        if column[1] in columnDict:
+            typePack = columnDict[column[1]]
+            if typePack == INTEGER:
+                typeSymbol = 'Q'
+            elif typePack == FLOAT:
+                typeSymbol = 'd'
+            elif typePack == STRING:
+                size =len(values[index]) 
+                padding = size - size%4
+                typeSymbol = "%ds"%(size) + "%dx"%(padding) if padding != 0 else ''
+                sizePack = size + padding 
+                valuePack = values[index].encode()
+        row.append(struct.pack("!ii%s"%(typeSymbol), typePack, sizePack, valuePack))
+    return b''.join([request, count, b''.join(row)])
+
+switcher = {
+    1: insertReq
+}
     
 # TODO: refactor so that it can send commands with arguments 
-def request(sock, command=1, table_nr=0):
+def request(sock, command=1, table_nr=0, **kwargs):
     # sending struct request to server
     # buf = struct.pack("!ii", command, table_nr)
     # sock.send(buf)
+    req = switcher[command]
+    return sock.send(req(table_nr, **kwargs))
     buf = struct.pack("!iiiii4sii4siidiiQ", 1, 1, 4,  3, 4, 'adel'.encode(),  3, 4, 'aswd'.encode(),  2, 8, 62.0,  1, 8, 23)
     print(struct.unpack("!iiiii4sii4siidiiQ", buf))
     sock.send(buf)
