@@ -51,6 +51,7 @@ class Database:
                     raise IntegrityError()
                 columnNames.add(column[0])
         self._tables = tables
+        self._tableNames = tableNames
         
     def connect(self, host, port):
         assert(self._socket is None)
@@ -102,10 +103,11 @@ class Database:
         if tableNumber is None or len(values) != len(tables[tableNumber][1]):
             raise PacketError()
         for index, column in enumerate(tables[tableNumber][1]):
-            if (isinstance(column[1], str) and not isinstance(values[index])) \
-                 or isinstance(values[index], column[1]):
+            if (isinstance(column[1], str) and not isinstance(values[index], int)) \
+                 or (not isinstance(column[1], str) and not isinstance(values[index], column[1])):
                 raise PacketError()
-        request(self._socket, INSERT, tableNumber)
+        request(self._socket, INSERT, tableNumber+1)
+        return 1,1
 
     def update(self, table_name, pk, values, version=None):
         # TODO: implement me
