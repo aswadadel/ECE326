@@ -8,7 +8,7 @@
 import socket
 from struct import pack
 from typing import Dict
-from .packet import EXIT, INSERT, OK, SERVER_BUSY, request, response
+from .packet import DROP, EXIT, INSERT, OK, SERVER_BUSY, request, response
 from .exception import IntegrityError, PacketError
 import re
 
@@ -74,6 +74,19 @@ class Database:
         request(self._socket, EXIT, 0)
         self._socket.close()
         self._socket = None
+    
+    def __getTableIndex(self, tableName):
+        tables = self._tables
+        tableIndex = None
+        if not isinstance(tableName, str):
+            raise PacketError()
+        for index, table in enumerate(tables):
+            if table[0] == tableName:
+                tableIndex = index
+                break
+        if tableIndex is None:
+            raise PacketError()
+        return tableIndex
 
     def __str__(self):
         tables = self._tables
@@ -93,14 +106,8 @@ class Database:
 
     def insert(self, table_name, values):
         tables = self._tables
-        tableIndex = None
-        if not isinstance(table_name, str):
-            raise PacketError()
-        for index, table in enumerate(tables):
-            if table[0] == table_name:
-                tableIndex = index
-                break
-        if tableIndex is None or len(values) != len(tables[tableIndex][1]):
+        tableIndex = self.__getTableIndex(table_name)
+        if len(values) != len(tables[tableIndex][1]):
             raise PacketError()
         for index, column in enumerate(tables[tableIndex][1]):
             if (isinstance(column[1], str) and not isinstance(values[index], int)) \
@@ -114,8 +121,11 @@ class Database:
         pass
 
     def drop(self, table_name, pk):
-        # TODO: implement me
-        pass
+        if not isinstance(pk, int):
+            raise PacketError()
+        tableIndex = self.__getTableIndex(table_name)
+        request(self._socket, DROP, tableIndex+1, pk=pk)
+        response(self._socket, DROP)
         
     def get(self, table_name, pk):
         # TODO: implement me

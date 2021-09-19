@@ -62,9 +62,6 @@ columnDict = {
     str:STRING,
 }
 
-def exitReq(tableNumber):
-    return struct.pack('!ii', EXIT, tableNumber)
-
 def insertReq(tableNumber, columns=None, values=None):
     request = struct.pack("!ii", INSERT, tableNumber)
     count = struct.pack("!i", len(columns))
@@ -91,12 +88,20 @@ def insertReq(tableNumber, columns=None, values=None):
         rows.append(struct.pack("!ii%s"%(typeSymbol), typePack, sizePack, valuePack))
     return b''.join([request, count, b''.join(rows)])
 
+def dropReq(tableNumber, pk=None):
+    request = struct.pack("!ii", DROP, tableNumber)
+    index = struct.pack("!Q", pk)
+    return b''.join([request, index])
+
+def exitReq(tableNumber):
+    return struct.pack('!ii', EXIT, tableNumber)
 
 # command -> function
 # functions must have the following signature: funcName(tableNumber, keyArg=val)->byteArray
 switcher = {
-    EXIT: exitReq,
-    INSERT: insertReq
+    INSERT: insertReq,
+    DROP: dropReq,
+    EXIT: exitReq
 }
     
 def request(sock, command=1, table_nr=0, **kwargs):
@@ -116,4 +121,6 @@ def response(sock, command=0):
         buffer = sock.recv(bufSize)
         pk, version = struct.unpack("!%s"%(bufPack), buffer)
         return pk, version
+    if command in (DROP, EXIT):
+        return
     return responseCode
