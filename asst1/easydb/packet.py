@@ -7,7 +7,6 @@
 
 from easydb.exception import InvalidReference, ObjectDoesNotExist, PacketError, TransactionAbort
 import struct
-import math
 
 # request commands
 INSERT = 1
@@ -47,6 +46,7 @@ class operator:
     LE = 6  # you do not have to implement the following two
     GE = 7
 
+# db error codes -> python exceptions
 responseCodeErrors = {
     NOT_FOUND: ObjectDoesNotExist,
     BAD_FOREIGN: InvalidReference,
@@ -55,11 +55,15 @@ responseCodeErrors = {
 responseCodeErrors.update(dict.fromkeys(\
     [BAD_QUERY, BAD_REQUEST, BAD_ROW, BAD_TABLE, BAD_VALUE], PacketError))
 
+# python types -> db types
 columnDict = {
     int:INTEGER,
     float: FLOAT,
     str:STRING,
 }
+
+def exitReq(tableNumber):
+    return struct.pack('!ii', EXIT, tableNumber)
 
 def insertReq(tableNumber, columns=None, values=None):
     request = struct.pack("!ii", INSERT, tableNumber)
@@ -82,26 +86,30 @@ def insertReq(tableNumber, columns=None, values=None):
                 typeSymbol = "%ds"%(size) + ("%dx"%(padding) if padding != 0 else '')
                 sizePack = size + padding 
                 valuePack = values[index].encode()
+        # use this to print the row's details before they get packed
         # print("!ii%s"%(typeSymbol), typePack, sizePack, valuePack)
         rows.append(struct.pack("!ii%s"%(typeSymbol), typePack, sizePack, valuePack))
     return b''.join([request, count, b''.join(rows)])
 
+
+# command -> function
+# functions must have the following signature: funcName(tableNumber, keyArg=val)->byteArray
 switcher = {
-    1: insertReq
+    EXIT: exitReq,
+    INSERT: insertReq
 }
     
-# TODO: refactor so that it can send commands with arguments 
 def request(sock, command=1, table_nr=0, **kwargs):
-    # sending struct request to server
     req = switcher[command]
+    # IMPORTANT: req functions take a tableNumber and any number of keyward arguments
     return sock.send(req(table_nr, **kwargs))
     
-# TODO: refactor so that it can receive response with arguments
 def response(sock, command=0):
-    # expecting struct response, which is 4 bytes
+    # get response code 
     responseCode = struct.unpack("!i", sock.recv(4))[0]
     if responseCode != OK:
         raise responseCodeErrors[responseCode]()
+    # get and unpack the expected byte sequence based on the command's response structure
     if command == INSERT:
         bufPack = 'QQ'
         bufSize = 16

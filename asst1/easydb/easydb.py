@@ -71,7 +71,7 @@ class Database:
     def close(self):
         if self._socket is None:
             return
-        request(EXIT, 0)
+        request(self._socket, EXIT, 0)
         self._socket.close()
         self._socket = None
 
