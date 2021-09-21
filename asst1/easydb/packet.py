@@ -74,7 +74,7 @@ def insertReq(tableNumber, columns=None, values=None):
         if column[1] in columnDict:
             typePack = columnDict[column[1]]
             if typePack == INTEGER:
-                typeSymbol = 'Q'
+                typeSymbol = 'q'
             elif typePack == FLOAT:
                 typeSymbol = 'd'
             elif typePack == STRING:
