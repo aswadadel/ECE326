@@ -103,6 +103,12 @@ def dropReq(tableNumber, pk=None):
     return b''.join([request, index])
 
 
+def getReq(tableNumber, pk=None):
+    request = struct.pack("!ii", GET, tableNumber)
+    index = struct.pack("!Q", pk)
+    return b''.join([request, index])
+
+
 def exitReq(tableNumber):
     return struct.pack('!ii', EXIT, tableNumber)
 
@@ -151,7 +157,8 @@ switcher = {
     INSERT: insertReq,
     DROP: dropReq,
     EXIT: exitReq,
-    UPDATE: updateReq
+    UPDATE: updateReq,
+    GET: getReq,
 }
 
 
@@ -186,4 +193,50 @@ def response(sock, command=0):
         return version
     if command == GET:
         print("getting")
+        row = list()
+        # get command
+        bufPack = 'Qi'
+        bufSize = 12
+        buffer = sock.recv(bufSize)
+        version, count = struct.unpack("!%s" % (bufPack), buffer)
+        # print("count is %i", count)
+        for column in range(count):
+            # get the type
+            bufPack = 'ii'
+            bufSize = 8
+            buffer = sock.recv(bufSize)
+            valueType, valueSize = struct.unpack("!%s" % (bufPack), buffer)
+            print(valueType)
+            if valueType == INTEGER:
+                bufPack = 'Q'
+                bufSize = 8
+            elif valueType == FLOAT:
+                bufPack = 'd'
+                bufSize = 8
+            elif valueType == FOREIGN:
+                bufPack = 'Q'
+                bufSize = 8
+            elif valueType == STRING:
+                padding = valueSize % 4
+                bufSize = padding + valueSize
+                bufPack = '%ds' % (bufSize)
+                print("bufSize = ", bufSize)
+                print("bufPack = ", bufPack)
+            buffer = sock.recv(bufSize)
+            bufferValue = struct.unpack("!%s" % (bufPack), buffer)
+            if(valueType == STRING):
+                bufferValue = bufferValue[0].decode(encoding='ascii')
+                bufferValue = bufferValue.replace('\x00', '')
+            elif(valueType == INTEGER or valueType == FLOAT):
+                # for some reason it buffer value puts them in a tuple
+                # but not always in the first position in the tuple so this is needed?
+                bufferValue = bufferValue[0]
+            elif(valueType == FOREIGN):
+                # why does this work?
+                bufferValue = bufferValue[0]
+
+            row.append(bufferValue)
+            print(bufferValue)
+        print(row)
+        return row, version
     return responseCode
