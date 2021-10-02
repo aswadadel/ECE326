@@ -8,7 +8,7 @@
 import socket
 from struct import pack
 from typing import Dict
-from .packet import DROP, EXIT, INSERT, OK, SERVER_BUSY, request, response, UPDATE, GET
+from .packet import DROP, EXIT, INSERT, NULL, OK, SERVER_BUSY, request, response, UPDATE, GET, SCAN, AL
 from .exception import IntegrityError, InvalidReference, PacketError
 import re
 
@@ -89,6 +89,25 @@ class Database:
             raise PacketError()
         return tableIndex
 
+    def __getColumnIndex(self, tableIndex, columnName):
+        tables = self._tables
+        columnIndex = None
+        #print("column name = ", columnName)
+        if not isinstance(columnName, str):
+            raise PacketError()
+        for index, columns in enumerate(tables[tableIndex]):
+            #print("columns = ", columns)
+            #print("index =", index)
+            for columnIndex, columnName in enumerate(columns):
+                #print("columnIndex = ", columnIndex)
+                #print("columnName = ", columnName)
+                if columnIndex == columnName:
+                    return columnIndex
+        if columnIndex is None:
+            raise PacketError()
+        print("column Index = ", columnIndex)
+        return columnIndex
+
     def __str__(self):
         tables = self._tables
         # used to prettify printing for primitive types
@@ -150,5 +169,17 @@ class Database:
         return response(self._socket, GET)
 
     def scan(self, table_name, op, column_name=None, value=None):
-        # TODO: implement me
-        pass
+        if not isinstance(op, int):
+            raise PacketError()
+        tableIndex = self.__getTableIndex(table_name)
+        newValue = value
+        if(op == AL):
+            columnIndex = 0
+            newValue.type = 0
+            newValue.size = 0
+        else:
+            tableIndex = self.__getTableIndex(table_name)
+            columnIndex = self.__getColumnIndex(tableIndex, column_name)
+        request(self._socket, command=SCAN, table_nr=tableIndex, op=op,
+                columnNumber=columnIndex, value=newValue)
+        return response(self._socket, SCAN)

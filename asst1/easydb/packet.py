@@ -49,6 +49,14 @@ class operator:
     GE = 7
 
 
+AL = 1  # everything
+EQ = 2  # equal
+NE = 3  # not equal
+LT = 4  # less than
+GT = 5  # greater than
+LE = 6  # you do not have to implement the following two
+GE = 7
+
 # db error codes -> python exceptions
 responseCodeErrors = {
     NOT_FOUND: ObjectDoesNotExist,
@@ -113,6 +121,37 @@ def exitReq(tableNumber):
     return struct.pack('!ii', EXIT, tableNumber)
 
 
+def scanReq(tableNumber, op, columnNumber=None, value=None):
+    # result = b''.join([request, count, b''.join(rows)])
+    request = struct.pack("!ii", SCAN, tableNumber)
+    scanPack = struct.pack("!ii", columnNumber, op)
+    packedValue = 0
+    print("value = ", value)
+    print("value type = ", type(value))
+    if op == AL:
+        packedValue = struct.pack("!ii", value.type, value.size)
+    else:
+        if isinstance(value, int):
+            packedValue = struct.pack(
+                "!iiQ", INTEGER, 8, value)
+        elif isinstance(value, float):
+            packedValue = struct.pack(
+                "!iid", FLOAT, 8, value)
+        elif isinstance(value, str):
+            padding = len(value) % 4
+            bufSize = padding + len(value)
+            bufPack = 'ii%ds' % (bufSize)
+            # add padding
+            packedValue = struct.pack(
+                "!%s" % (bufPack), STRING, bufSize, value)
+        else:
+            #type is foreign
+            print("type is foreign")
+
+    # packedV
+    return b''.join([request,  scanPack, packedValue])
+
+
 def updateReq(tableNumber, columns=None, values=None, version=0, pk=None):
     request = struct.pack("!ii", UPDATE, tableNumber)
     count = struct.pack("!i", len(columns))
@@ -159,6 +198,9 @@ switcher = {
     EXIT: exitReq,
     UPDATE: updateReq,
     GET: getReq,
+    SCAN: scanReq,
+
+
 }
 
 
@@ -191,6 +233,20 @@ def response(sock, command=0):
         version = struct.unpack("!%s" % (bufPack), buffer)
         print("returning")
         return version
+    if command == SCAN:
+        print("scanning")
+        IdList = list()
+        bufPack = 'i'
+        bufSize = 4
+        buffer = sock.recv(bufSize)
+        count = struct.unpack("!%s" % (bufPack), buffer)
+        for ids in range(count):
+            bufPack = 'Q'
+            bufSize = 8
+            buffer = sock.recv(bufSize)
+            returnedId = struct.unpack("!%s" % (bufPack), buffer)
+            IdList.append(returnedId)
+        return IdList
     if command == GET:
         print("getting")
         row = list()
