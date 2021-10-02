@@ -1,4 +1,6 @@
 *.o
 *.pyc
 *.log
+*.json
+*.nfs
 tester*
