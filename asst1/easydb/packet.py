@@ -121,41 +121,46 @@ def exitReq(tableNumber):
     return struct.pack('!ii', EXIT, tableNumber)
 
 
-def scanReq(tableNumber, op, columnNumber=None, value=None, type=None):
+def scanReq(tableNumber, op, columnNumber=None, value=None, columnType=None):
     # result = b''.join([request, count, b''.join(rows)])
     request = struct.pack("!ii", SCAN, tableNumber)
     print("columnNum = ", columnNumber)
     print("op = ", op)
+    print("ColumnType = ", columnType)
     scanPack = struct.pack("!ii", columnNumber, op)
     packedValue = 0
     if op == AL:
         packedValue = struct.pack("!ii", NULL, 0)
     else:
-        if type == FOREIGN:
-            print("foreign detected")
-            packedValue = struct.pack("!iiQ", FOREIGN, 8, value)
-        elif isinstance(value, int):
-            packedValue = struct.pack(
-                "!iiQ", INTEGER, 8, value)
-        elif isinstance(value, float):
-            packedValue = struct.pack(
-                "!iid", FLOAT, 8, value)
-        elif isinstance(value, str):
-            typePack = STRING
-            size = len(value)
-            padding = (4-size % 4) % 4
-            typeSymbol = "%ds" % (size) + ("%dx" %
-                                           (padding) if padding != 0 else '')
-            sizePack = size + padding
-            valuePack = value.encode()
-            packedValue = struct.pack("!ii%s" %
-                                      (typeSymbol), typePack, sizePack, valuePack)
-        else:
-            #type is foreign
-            print("type is foreign")
+        typePack = FOREIGN
+        sizePack = 8
+        valuePack = value
+        typeSymbol = 'Q'
+        #print("index =", index)
+        #print("value = ", values[index])
+        #print("column[1]", column[1])
+        if columnType in columnDict:
+            typePack = columnDict[columnType]
+            if typePack == INTEGER:
+                typeSymbol = 'q'
+            elif typePack == FLOAT:
+                typeSymbol = 'd'
+            elif typePack == STRING:
+                size = len(value)
+                padding = (4-size % 4) % 4
+                typeSymbol = "%ds" % (size) + ("%dx" %
+                                               (padding) if padding != 0 else '')
+                sizePack = size + padding
+                valuePack = value.encode('ASCII')
+        # use this to print the row's details before they get packed
+        # print("!ii%s"%(typeSymbol), typePack, sizePack, valuePack)
+        # elif typePack == FOREIGN:
+        packedValue = struct.pack("!ii%s" %
+                                  (typeSymbol), typePack, sizePack, valuePack)
 
     # packedV
-    return b''.join([request,  scanPack, packedValue])
+    result = b''.join([request,  scanPack, packedValue])
+    return result
 
 
 def updateReq(tableNumber, columns=None, values=None, version=0, pk=None):
@@ -255,7 +260,7 @@ def response(sock, command=0):
         bufSize = 4
         buffer = sock.recv(bufSize)
         count = struct.unpack("!%s" % (bufPack), buffer)[0]
-        print("count =")
+        print("count = ", count)
         for ids in range(count):
             bufPack = 'Q'
             bufSize = 8

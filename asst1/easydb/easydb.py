@@ -171,7 +171,7 @@ class Database:
         columnType = None
         if(op == AL):
             columnIndex = 0
-        elif(column_name == "id" or column_name == "album"):
+        elif(column_name == "id"):
             if(op != NE and op != EQ):
                 raise PacketError()
             columnIndex = 0
@@ -187,5 +187,5 @@ class Database:
         # check if foreign key
 
         request(self._socket, command=SCAN, table_nr=tableIndex+1, op=op,
-                columnNumber=columnIndex, value=newValue, type=columnType)
+                columnNumber=columnIndex, value=newValue, columnType=columnType)
         return response(self._socket, SCAN)
