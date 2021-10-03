@@ -36,7 +36,6 @@ class Database:
                 raise ValueError()
             tableNames.add(table[0])
             columnNames.clear()
-            # print(table[0])
             for column in table[1]:
                 # check if column name is string
                 if not isinstance(column[0], str):
@@ -93,7 +92,6 @@ class Database:
         tables = self._tables
         columnIndex = None
         columnType = None
-        #print("column name = ", columnName)
         if not isinstance(columnName, str):
             raise PacketError()
         for columnIndex, column in enumerate(tables[tableIndex][1]):
@@ -166,8 +164,6 @@ class Database:
             raise PacketError()
         tableIndex = self.__getTableIndex(table_name)
         newValue = value
-        print("value =", value)
-        print("column name", column_name)
         columnType = None
         if(op == AL):
             columnIndex = 0
