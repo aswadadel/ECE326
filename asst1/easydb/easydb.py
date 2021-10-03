@@ -8,7 +8,7 @@
 import socket
 from struct import pack
 from typing import Dict
-from .packet import DROP, EXIT, INSERT, NULL, OK, SERVER_BUSY, request, response, UPDATE, GET, SCAN, AL
+from .packet import BAD_QUERY, DROP, EXIT, FOREIGN, INSERT, NULL, OK, SERVER_BUSY, request, response, UPDATE, GET, SCAN, AL, NE, EQ
 from .exception import IntegrityError, InvalidReference, PacketError
 import re
 
@@ -92,21 +92,14 @@ class Database:
     def __getColumnIndex(self, tableIndex, columnName):
         tables = self._tables
         columnIndex = None
+        columnType = None
         #print("column name = ", columnName)
         if not isinstance(columnName, str):
             raise PacketError()
-        for index, columns in enumerate(tables[tableIndex]):
-            #print("columns = ", columns)
-            #print("index =", index)
-            for columnIndex, columnName in enumerate(columns):
-                #print("columnIndex = ", columnIndex)
-                #print("columnName = ", columnName)
-                if columnIndex == columnName:
-                    return columnIndex
-        if columnIndex is None:
-            raise PacketError()
-        print("column Index = ", columnIndex)
-        return columnIndex
+        for columnIndex, column in enumerate(tables[tableIndex][1]):
+            if columnName == column[0]:
+                return columnIndex, column[1]
+        raise PacketError()
 
     def __str__(self):
         tables = self._tables
@@ -142,7 +135,7 @@ class Database:
         tableIndex = self.__getTableIndex(table_name)
         if not isinstance(pk, int):
             raise PacketError()
-        if not isinstance(version, int):
+        if not isinstance(version, int) and version is not None:
             raise PacketError()
         if len(values) != len(tables[tableIndex][1]):
             raise PacketError()
@@ -173,13 +166,26 @@ class Database:
             raise PacketError()
         tableIndex = self.__getTableIndex(table_name)
         newValue = value
+        print("value =", value)
+        print("column name", column_name)
+        columnType = None
         if(op == AL):
             columnIndex = 0
-            newValue.type = 0
-            newValue.size = 0
+        elif(column_name == "id" or column_name == "album"):
+            if(op != NE and op != EQ):
+                raise PacketError()
+            columnIndex = 0
+            columnType = FOREIGN
         else:
             tableIndex = self.__getTableIndex(table_name)
-            columnIndex = self.__getColumnIndex(tableIndex, column_name)
-        request(self._socket, command=SCAN, table_nr=tableIndex, op=op,
-                columnNumber=columnIndex, value=newValue)
+            columnIndex, columnType = self.__getColumnIndex(
+                tableIndex, column_name)
+            columnIndex = columnIndex + 1
+            if isinstance(columnType, str) and not isinstance(value, int) or (not isinstance(columnType, str) and not isinstance(value, columnType)):
+                raise PacketError()
+
+        # check if foreign key
+
+        request(self._socket, command=SCAN, table_nr=tableIndex+1, op=op,
+                columnNumber=columnIndex, value=newValue, type=columnType)
         return response(self._socket, SCAN)

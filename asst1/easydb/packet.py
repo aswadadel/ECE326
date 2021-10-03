@@ -121,29 +121,35 @@ def exitReq(tableNumber):
     return struct.pack('!ii', EXIT, tableNumber)
 
 
-def scanReq(tableNumber, op, columnNumber=None, value=None):
+def scanReq(tableNumber, op, columnNumber=None, value=None, type=None):
     # result = b''.join([request, count, b''.join(rows)])
     request = struct.pack("!ii", SCAN, tableNumber)
+    print("columnNum = ", columnNumber)
+    print("op = ", op)
     scanPack = struct.pack("!ii", columnNumber, op)
     packedValue = 0
-    print("value = ", value)
-    print("value type = ", type(value))
     if op == AL:
-        packedValue = struct.pack("!ii", value.type, value.size)
+        packedValue = struct.pack("!ii", NULL, 0)
     else:
-        if isinstance(value, int):
+        if type == FOREIGN:
+            print("foreign detected")
+            packedValue = struct.pack("!iiQ", FOREIGN, 8, value)
+        elif isinstance(value, int):
             packedValue = struct.pack(
                 "!iiQ", INTEGER, 8, value)
         elif isinstance(value, float):
             packedValue = struct.pack(
                 "!iid", FLOAT, 8, value)
         elif isinstance(value, str):
-            padding = len(value) % 4
-            bufSize = padding + len(value)
-            bufPack = 'ii%ds' % (bufSize)
-            # add padding
-            packedValue = struct.pack(
-                "!%s" % (bufPack), STRING, bufSize, value)
+            typePack = STRING
+            size = len(value)
+            padding = (4-size % 4) % 4
+            typeSymbol = "%ds" % (size) + ("%dx" %
+                                           (padding) if padding != 0 else '')
+            sizePack = size + padding
+            valuePack = value.encode()
+            packedValue = struct.pack("!ii%s" %
+                                      (typeSymbol), typePack, sizePack, valuePack)
         else:
             #type is foreign
             print("type is foreign")
@@ -155,7 +161,13 @@ def scanReq(tableNumber, op, columnNumber=None, value=None):
 def updateReq(tableNumber, columns=None, values=None, version=0, pk=None):
     request = struct.pack("!ii", UPDATE, tableNumber)
     count = struct.pack("!i", len(columns))
-    key = struct.pack("!QQ", pk, version)
+    if version is None:
+        newVersion = 0
+    else:
+        newVersion = version
+    print("pk = ", pk)
+    print("version = ", version)
+    key = struct.pack("!QQ", pk, newVersion)
     print("packing")
     rows = list()
     for index, column in enumerate(columns):
@@ -163,6 +175,9 @@ def updateReq(tableNumber, columns=None, values=None, version=0, pk=None):
         sizePack = 8
         valuePack = values[index]
         typeSymbol = 'Q'
+        #print("index =", index)
+        #print("value = ", values[index])
+        #print("column[1]", column[1])
         if column[1] in columnDict:
             typePack = columnDict[column[1]]
             if typePack == INTEGER:
@@ -175,19 +190,19 @@ def updateReq(tableNumber, columns=None, values=None, version=0, pk=None):
                 typeSymbol = "%ds" % (size) + ("%dx" %
                                                (padding) if padding != 0 else '')
                 sizePack = size + padding
-                valuePack = values[index].encode()
+                valuePack = values[index].encode('ASCII')
         # use this to print the row's details before they get packed
         # print("!ii%s"%(typeSymbol), typePack, sizePack, valuePack)
+        # elif typePack == FOREIGN:
+
         rows.append(struct.pack("!ii%s" %
                     (typeSymbol), typePack, sizePack, valuePack))
+    rowsResult = b''.join(rows)
     # pk is the row to update, version is
     # implement me, pack is done here
     # returns new version code
     print("successfully packed")
-    result = b''.join(
-        [request, key, count, b''.join(rows)])
-    print(result)
-    return result
+    return b''.join([request, key, count, rowsResult])
 
 
 # command -> function
@@ -230,8 +245,8 @@ def response(sock, command=0):
         bufPack = 'Q'
         bufSize = 8
         buffer = sock.recv(bufSize)
-        version = struct.unpack("!%s" % (bufPack), buffer)
-        print("returning")
+        version = struct.unpack("!%s" % (bufPack), buffer)[0]
+        print("returning this version", version)
         return version
     if command == SCAN:
         print("scanning")
@@ -239,12 +254,13 @@ def response(sock, command=0):
         bufPack = 'i'
         bufSize = 4
         buffer = sock.recv(bufSize)
-        count = struct.unpack("!%s" % (bufPack), buffer)
+        count = struct.unpack("!%s" % (bufPack), buffer)[0]
+        print("count =")
         for ids in range(count):
             bufPack = 'Q'
             bufSize = 8
             buffer = sock.recv(bufSize)
-            returnedId = struct.unpack("!%s" % (bufPack), buffer)
+            returnedId = struct.unpack("!%s" % (bufPack), buffer)[0]
             IdList.append(returnedId)
         return IdList
     if command == GET:
