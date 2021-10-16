@@ -5,7 +5,7 @@
 # Definition for all the packet-related constants and classes in EasyDB
 #
 
-from easydb.exception import InvalidReference, ObjectDoesNotExist, PacketError, TransactionAbort
+from .exception import InvalidReference, ObjectDoesNotExist, PacketError, TransactionAbort
 import struct
 
 # request commands
