@@ -7,10 +7,33 @@
 
 # metaclass of table
 # Implement me or change me. (e.g. use class decorator instead)
+from typing import OrderedDict
+from orm import field
+
+
 class MetaTable(type):
+    reservedWords = ['pk', 'version', 'save', 'delete']
+    tables = OrderedDict()
 
     def __init__(cls, name, bases, attrs):
-        pass
+        if name in MetaTable.tables:
+            raise AttributeError
+
+        # add tables to dict
+        MetaTable.tables[name] = cls
+        cls.column = []
+        cls.field = []
+
+        for attribute in attrs:
+            if isinstance(attrs[attribute], (field.Integer, field.Float, field.String, field.Foreign)):
+                if attribute in MetaTable.reservedWords or "_" in attribute:
+                    raise AttributeError
+                else:
+                    cls.field.append(attrs[attribute])
+                    cls.column.append(attribute)
+
+    def __prepare__(cls, name):
+        return OrderedDict()
 
     # Returns an existing object from the table, if it exists.
     #   db: database object, the database to get the object from
@@ -25,7 +48,7 @@ class MetaTable(type):
     def filter(cls, db, **kwarg):
         return list()
 
-    # Returns the number of matches given the query. If no argument is given, 
+    # Returns the number of matches given the query. If no argument is given,
     # return the number of rows in the table.
     # db: database object, the database to get the object from
     # kwarg: the query argument for comparing
@@ -34,19 +57,21 @@ class MetaTable(type):
 
 # table class
 # Implement me.
+
+
 class Table(object, metaclass=MetaTable):
 
     def __init__(self, db, **kwargs):
         self.pk = None      # id (primary key)
-        self.version = None # version
+        self.version = None  # version
+
         # FINISH ME
 
     # Save the row by calling insert or update commands.
     # atomic: bool, True for atomic update or False for non-atomic update
     def save(self, atomic=True):
         pass
-        
+
     # Delete the row from the database.
     def delete(self):
         pass
-

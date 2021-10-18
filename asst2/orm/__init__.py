@@ -9,10 +9,10 @@ from .easydb import IntegrityError, InvalidReference, ObjectDoesNotExist, \
     TransactionAbort, PacketError
 from .table import Table
 from .field import Integer, Float, String, Foreign, DateTime, Coordinate
-from .orm import setup
+from .orm import setup, getSchema
+
 
 def export(database_name, module):
     # this assumes setup() will always return an EasyDB database object
     db = setup(database_name, module)
     return str(db)
-
