@@ -70,8 +70,9 @@ class Table(object, metaclass=MetaTable):
     # Save the row by calling insert or update commands.
     # atomic: bool, True for atomic update or False for non-atomic update
     def save(self, atomic=True):
-        pass
+
+        return
 
     # Delete the row from the database.
     def delete(self):
-        pass
+        return

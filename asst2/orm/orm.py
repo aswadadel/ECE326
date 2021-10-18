@@ -33,6 +33,8 @@ def getSchema(module):
         columns = []
         savedType = None
         tableItems = MetaTable.tables[tableName].__dict__
+        if tableName == "Table":
+            continue
         for columnName, columnType in tableItems.items():
             if("__" in columnName or "column" in columnName or "field" in columnName):
                 pass
