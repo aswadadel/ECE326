@@ -8,47 +8,62 @@
 
 class Integer:
     def __init__(self, blank=False, default=0, choices=None):
-        if default is not 0:
+        self.blank = blank
+        self.choices = choices
+        if callable(default):
+            self.default = default()
+        elif default is not 0:
             if type(default) is not int:
                 raise TypeError
+        else:
+            self.default = default
+
         if choices is not None:
+            if blank == True and default not in choices:
+                raise TypeError
             for choice in choices:
                 if type(choice) is not int:
                     raise TypeError
 
-        self.default = default
-        self.blank = blank
-        self.choices = choices
-
 
 class Float:
     def __init__(self, blank=False, default=0.0, choices=None):
-        if default is not 0.0:
-            if type(default) is not float:
+        self.blank = blank
+        self.choices = choices
+        if callable(default):
+            self.default = default()
+        elif default is not 0.0:
+            if type(default) is not float and type(default) is not int:
                 raise TypeError
+        else:
+            self.default = default
         if choices is not None:
+            if blank == True and default not in choices:
+                raise TypeError
             for choice in choices:
                 if type(choice) is not float and type(choice) is not int:
                     raise TypeError
 
-        self.default = default
-        self.blank = blank
-        self.choices = choices
-
 
 class String:
     def __init__(self, blank=False, default="", choices=None):
-        if default is not "":
+        self.blank = blank
+        self.choices = choices
+        if callable(default):
+            self.default = default()
+        elif default is not "":
             if type(default) is not str:
                 raise TypeError
+        else:
+            self.default = default
         if choices is not None:
+            if blank == True and default not in choices:
+                raise TypeError
             for choice in choices:
                 if type(choice) is not str:
                     raise TypeError
-        self.default = default
-        self.blank = blank
-        self.choices = choices
-        pass
+
+        return
 
 
 class Foreign:

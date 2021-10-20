@@ -52,10 +52,10 @@ def getSchema(module):
                 # elif 'Coordinate in str(columnType):
                 # elif 'DateTime in str(columnType):
                 data = (columnName, savedType)
-                # print(data)
-                columns.append(data)
+                if savedType != None:
+                    columns.append(data)
         schema.append((tableName, tuple(columns)))
-    print(schema)
+    # print(schema)
     return schema
 
 
