@@ -74,10 +74,8 @@ class Table(object, metaclass=MetaTable):
             fieldValue = getattr(type(self), column)
             if column not in kwargs:
                 print("\n column = ", column)
-                if fieldValue.blank == False:
-                    raise AttributeError
-                else:
-                    setattr(self, column, fieldValue.default)
+                print("fieldValue = ", fieldValue)
+                setattr(self, column, fieldValue.default)
             else:
                 setattr(self, column, kwargs[column])
         return
