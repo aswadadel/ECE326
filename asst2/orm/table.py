@@ -39,6 +39,7 @@ class MetaTable(type):
     #   db: database object, the database to get the object from
     #   pk: int, primary key (ID)
     def get(cls, db, pk):
+        obj, version = db.get(cls.__name__, pk)
         return None
 
     # Returns a list of objects that matches the query. If no argument is given,
@@ -62,15 +63,31 @@ class MetaTable(type):
 class Table(object, metaclass=MetaTable):
 
     def __init__(self, db, **kwargs):
+        # object /17
         self.pk = None      # id (primary key)
         self.version = None  # version
+        # needed for save
+        self.db = db
 
+        # setting values for object
+        for column in self.column:
+            fieldValue = getattr(type(self), column)
+            if column not in kwargs:
+                print("\n column = ", column)
+                if fieldValue.blank == False:
+                    raise AttributeError
+                else:
+                    setattr(self, column, fieldValue.default)
+            else:
+                setattr(self, column, kwargs[column])
+        return
         # FINISH ME
 
     # Save the row by calling insert or update commands.
     # atomic: bool, True for atomic update or False for non-atomic update
     def save(self, atomic=True):
-
+        # check if it exists already
+        # /13
         return
 
     # Delete the row from the database.

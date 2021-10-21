@@ -37,6 +37,7 @@ class Float:
                 raise TypeError
         else:
             self.default = default
+
         if choices is not None:
             if blank == True and default not in choices:
                 raise TypeError
@@ -56,6 +57,7 @@ class String:
                 raise TypeError
         else:
             self.default = default
+
         if choices is not None:
             if blank == True and default not in choices:
                 raise TypeError
@@ -69,7 +71,7 @@ class String:
 class Foreign:
     def __init__(self, table=None, blank=False):
         if(blank == True):
-            self.table = None
+            self.table = table
             self.blank = True
         elif(blank == False and table == None):
             raise TypeError
@@ -77,6 +79,10 @@ class Foreign:
             self.table = table
             self.blank = False
         return
+
+    def __set__(self, inst, newVal):
+        # intercept faulty assignments
+        pass
 
 
 class DateTime:
