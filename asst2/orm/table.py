@@ -38,10 +38,22 @@ class MetaTable(type):
     # Returns an existing object from the table, if it exists.
     #   db: database object, the database to get the object from
     #   pk: int, primary key (ID)
+    # Note that you must support cascade get, which requires you to convert foreign key references
+    # to actual objects, as described in the previous section (save).
     def get(cls, db, pk):
-        obj, version = db.get(cls.__name__, pk)
+        columnVal, version = db.get(cls.__name__, pk)
+        for count, colValue in enumerate(columnVal):
+            print("\n count = ", count)
+            print("fieldValue = ", colValue)
 
-        return None
+            # look up the foreign
+            # if columnVal
+            pass
+        entries = {}
+        for index, columnName in enumerate(cls.column):
+            entries[columnName] = columnVal[index]
+        newTable = cls(db, **entries)
+        return newTable
 
     # Returns a list of objects that matches the query. If no argument is given,
     # returns all objects in the table.
@@ -74,12 +86,12 @@ class Table(object, metaclass=MetaTable):
         for column in self.column:
             fieldValue = getattr(type(self), column)
             if column not in kwargs:
-                #print("\n column = ", column)
-                #print("fieldValue = ", fieldValue)
+                # print("\n column = ", column)
+                # print("fieldValue = ", fieldValue)
                 setattr(self, column, fieldValue.default)
             else:
-                #print("column in kwargs=", column)
-                #print("field Value found = ", kwargs[column])
+                # print("column in kwargs=", column)
+                # print("field Value found = ", kwargs[column])
                 setattr(self, column, kwargs[column])
         return
         # FINISH ME
@@ -95,8 +107,8 @@ class Table(object, metaclass=MetaTable):
         tableName = str(type(self)).split(".")[1].replace("'>", "")
         for column in self.column:
             columnValue = getattr(self, column)
-            #print("\n columnValue in save =", columnValue)
-            #print("\n self type ", type(self))
+            # print("\n columnValue in save =", columnValue)
+            # print("\n self type ", type(self))
 
             entryData.append(columnValue)
         if self.pk is not None:
@@ -114,4 +126,8 @@ class Table(object, metaclass=MetaTable):
 
     # Delete the row from the database.
     def delete(self):
+        tableName = str(type(self)).split(".")[1].replace("'>", "")
+        self.db.drop(tableName, self.pk)
+        self.pk = None
+        self.version = None
         return

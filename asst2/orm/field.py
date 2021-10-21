@@ -44,14 +44,14 @@ class Float:
     def __init__(self, blank=False, default=0.0, choices=None):
         self.blank = blank
         self.choices = choices
-        if type(default) is not float and type(default) is not int and callable(default) == False:
+        if type(default) not in [float, int] and callable(default) == False:
             raise TypeError
 
         if choices is not None:
             if blank == True and default not in choices:
                 raise TypeError
             for choice in choices:
-                if type(choice) is not float and type(choice) is not int:
+                if type(choice) not in [float, int]:
                     raise TypeError
 
         if callable(default):
@@ -68,7 +68,7 @@ class Float:
             # print("type value = ", type(value))
             self.__dict__[name] = value
         else:
-            if isinstance(value, float) or isinstance(value, int):
+            if isinstance(value, float, int):
                 self.__dict__[name] = float(value)
             else:
                 raise ValueError
