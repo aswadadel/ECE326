@@ -40,6 +40,7 @@ class MetaTable(type):
     #   pk: int, primary key (ID)
     def get(cls, db, pk):
         obj, version = db.get(cls.__name__, pk)
+
         return None
 
     # Returns a list of objects that matches the query. If no argument is given,
@@ -73,12 +74,12 @@ class Table(object, metaclass=MetaTable):
         for column in self.column:
             fieldValue = getattr(type(self), column)
             if column not in kwargs:
-                print("\n column = ", column)
-                print("fieldValue = ", fieldValue)
+                #print("\n column = ", column)
+                #print("fieldValue = ", fieldValue)
                 setattr(self, column, fieldValue.default)
             else:
-                print("column in kwargs=", column)
-                print("field Value found = ", kwargs[column])
+                #print("column in kwargs=", column)
+                #print("field Value found = ", kwargs[column])
                 setattr(self, column, kwargs[column])
         return
         # FINISH ME
@@ -88,11 +89,27 @@ class Table(object, metaclass=MetaTable):
     # atomic: bool, True for atomic update or False for non-atomic update
     def save(self, atomic=True):
         version = 0
+        entryData = []
+
+        # kinda hacky but it works lol
+        tableName = str(type(self)).split(".")[1].replace("'>", "")
+        for column in self.column:
+            columnValue = getattr(self, column)
+            #print("\n columnValue in save =", columnValue)
+            #print("\n self type ", type(self))
+
+            entryData.append(columnValue)
         if self.pk is not None:
+            # if pk is None then it is not in the database
             if atomic == True:
-                pass
-                # check if it exists already
-                # /13
+                version = self.version
+            print("data to insert = ", entryData)
+            self.version = self.db.update(
+                tableName, self.pk, entryData, version)
+        else:
+            print("data to insert = ", entryData)
+            self.pk, self.version = self.db.insert(
+                tableName, entryData)
         return
 
     # Delete the row from the database.
