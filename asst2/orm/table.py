@@ -77,15 +77,22 @@ class Table(object, metaclass=MetaTable):
                 print("fieldValue = ", fieldValue)
                 setattr(self, column, fieldValue.default)
             else:
+                print("column in kwargs=", column)
+                print("field Value found = ", kwargs[column])
                 setattr(self, column, kwargs[column])
         return
         # FINISH ME
 
     # Save the row by calling insert or update commands.
+    # use scan so you dont get errors
     # atomic: bool, True for atomic update or False for non-atomic update
     def save(self, atomic=True):
-        # check if it exists already
-        # /13
+        version = 0
+        if self.pk is not None:
+            if atomic == True:
+                pass
+                # check if it exists already
+                # /13
         return
 
     # Delete the row from the database.

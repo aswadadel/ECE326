@@ -32,10 +32,9 @@ def getSchema(module):
     for tableName in MetaTable.tables:
         columns = []
         savedType = None
-        tableItems = MetaTable.tables[tableName].__dict__
         if tableName == "Table":
             continue
-        for columnName, columnType in tableItems.items():
+        for columnName, columnType in vars(MetaTable.tables[tableName]).items():
             if("__" in columnName or "column" in columnName or "field" in columnName):
                 pass
             else:

@@ -4,6 +4,7 @@
 #
 # Definitions for all the field types in ORM layer
 #
+initMembers = ["blank", "default", "choices", "table"]
 
 
 class Integer:
@@ -24,6 +25,17 @@ class Integer:
         else:
             self.default = default
 
+    def __setattr__(self, name, value):
+        # print("name = ", name)
+        if name in initMembers:
+            # print("\n value = ", value)
+            # print("type value = ", type(value))
+            self.__dict__[name] = value
+        else:
+            if isinstance(value, int):
+                self.__dict__[name] = value
+            else:
+                raise ValueError
     # def __str__(self):
     #     return "default: {} blank: {} choices: {} ".format(self.default, self.blank, self.choices)
 
@@ -43,35 +55,31 @@ class Float:
                     raise TypeError
 
         if callable(default):
-            self.default = default()
+            self.default = float(default())
         else:
-            self.default = default
+            self.default = float(default)
 
     # def __str__(self):
     #     return "default: {} blank: {} choices: {} ".format(self.default, self.blank, self.choices)
-    '''
-    def __set__(self, instance, value):
-        if isinstance(value, float):
-            return setattr(instance, self.name, value)
-        elif isinstance(value, int):
-            return setattr(instance, self.name, float(value))
-        elif self.chocies is not None: 
-            if value not in self.choices:
-                raise ValueError
+    def __setattr__(self, name, value):
+        # print("name = ", name)
+        if name in initMembers:
+            # print("\n value = ", value)
+            # print("type value = ", type(value))
+            self.__dict__[name] = value
         else:
-            raise TypeError
-        return
-    def __get__(self, instance, owner):
-        return
-    '''
+            if isinstance(value, float) or isinstance(value, int):
+                self.__dict__[name] = float(value)
+            else:
+                raise ValueError
 
 
 class String:
     def __init__(self, blank=False, default="", choices=None):
         self.blank = blank
         self.choices = choices
-        #print("string default = ", default)
-        #print("is callable = ", callable(default))
+        # print("string default = ", default)
+        # print("is callable = ", callable(default))
         if type(default) is not str and callable(default) == False:
             raise TypeError
 
@@ -89,6 +97,18 @@ class String:
 
         return
 
+    def __setattr__(self, name, value):
+        if name in initMembers:
+            # print("\n value = ", value)
+            # print("type value = ", type(value))
+            self.__dict__[name] = value
+        else:
+            print("name = ", name)
+            if isinstance(value, str) or (self.choices is not None and value in self.choices):
+                self.__dict__[name] = value
+            else:
+                raise ValueError
+
     # def __str__(self):
     #     return "default: {} blank: {} choices: {} ".format(self.default, self.blank, self.choices)
 
@@ -104,9 +124,6 @@ class Foreign:
 
         self.blank = blank
         return
-
-    # def __str__(self):
-    #     return "table: {} blank: {} ".format(self.table, self.blank)
 
 
 class DateTime:
