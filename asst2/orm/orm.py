@@ -57,7 +57,3 @@ def getSchema(module):
         schema.append((tableName, tuple(columns)))
     # print(schema)
     return schema
-
-
-def printTable(name):
-    return
