@@ -46,16 +46,46 @@ class MetaTable(type):
     # to actual objects, as described in the previous section (save).
     def get(cls, db, pk):
         columnVal, version = db.get(cls.__name__, pk)
+        names = []
+        values = []
+        entries = {}
         for count, colValue in enumerate(columnVal):
-            print("\n count = ", count)
-            print("fieldValue = ", colValue)
+            #print("\n count = ", count)
+            #print("fieldValue = ", colValue)
 
             # look up the foreign
-            # if columnVal
+            if type(cls.field[count]) == field.Foreign:
+                #print("\n foreign detected field was =", cls.column[count])
+                # MIGHT BE A SOURCE OF BUGS WITH CUSTOM
+                cascTableName = cls.column[count].capitalize()
+                cascVal, cascVersion = db.get(
+                    cascTableName, colValue)
+                #print("cascVal = ", cascVal)
+                cascNames = []
+                cascValues = []
+                cascEntries = {}
+                cascObjectType = getattr(cls, cls.column[count]).table
+
+                for colIndex, colName in enumerate(MetaTable.tables[cascTableName].column):
+                    #print("name appended = ", colName)
+                    #print("value appended = ", cascVal[colIndex])
+                    cascNames.append(colName)
+                    cascValues.append(cascVal[colIndex])
+                # formatting the lists
+                for index in range(len(cascValues)):
+                    cascEntries[cascNames[index]] = cascValues[index]
+                cascObject = cascObjectType(db, **cascEntries)
+                names.append(cls.column[count])
+                values.append(cascObject)
+                pass
+            else:
+                # not a foreign
+                names.append(cls.column[count])
+                values.append(colValue)
+                pass
             pass
-        entries = {}
-        for index, columnName in enumerate(cls.column):
-            entries[columnName] = columnVal[index]
+        for i in range(len(values)):
+            entries[names[i]] = values[i]
         newTable = cls(db, **entries)
         return newTable
 
@@ -119,8 +149,6 @@ class Table(object, metaclass=MetaTable):
                     1].replace("'>", "")
                 columnValue
 
-                # this is hardcoded, im very tired :(
-                #print("properties = ", tables[lookupTable].__dict__)
                 if(columnValue.pk == None):
                     columnValue.save()
                     pass
