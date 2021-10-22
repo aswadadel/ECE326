@@ -4,6 +4,9 @@
 #
 # Definitions for all the field types in ORM layer
 #
+from typing import Type
+
+
 initMembers = ["blank", "default", "choices", "table"]
 
 
@@ -24,10 +27,13 @@ class Integer:
             self.default = default()
         else:
             self.default = default
+        self.value = self.default
 
     def __setattr__(self, name, value):
         # print("name = ", name)
-        if name in initMembers:
+        if name == "value":
+            self.__dict__[name] = "" + str(value)
+        elif name in initMembers:
             # print("\n value = ", value)
             # print("type value = ", type(value))
             self.__dict__[name] = value
@@ -36,8 +42,20 @@ class Integer:
                 self.__dict__[name] = value
             else:
                 raise ValueError
-    # def __str__(self):
-    #     return "default: {} blank: {} choices: {} ".format(self.default, self.blank, self.choices)
+
+    def __set__(self, instance, value):
+        if isinstance(value, int):
+            newVal = ""+str(self.value)
+            return setattr(instance, newVal, value)
+        elif self.choices is not None and value not in self.choices:
+            raise ValueError
+        else:
+            raise TypeError
+
+    def __get__(self, instance, owner):
+        if instance is not None:
+            return getattr(instance, self.value)
+        return self
 
 
 class Float:

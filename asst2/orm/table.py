@@ -140,10 +140,10 @@ class Table(object, metaclass=MetaTable):
         tableName = str(type(self)).split(".")[1].replace("'>", "")
         for column in self.column:
             columnValue = getattr(self, column)
-            # print("\n columnValue in save =", columnValue)
-            # print("\n self type ", type(self))
+            #print("\n columnValue in save =", columnValue)
+            #print("\n self type ", type(self))
             # add DateTime and Coordinates when done in here
-            if type(columnValue) not in [int, float, str]:
+            if type(columnValue).__class__ == MetaTable:
                 # do the lookup
                 lookupTable = str(type(columnValue)).split(".")[
                     1].replace("'>", "")
