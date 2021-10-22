@@ -8,7 +8,11 @@
 # metaclass of table
 # Implement me or change me. (e.g. use class decorator instead)
 from typing import OrderedDict
+from orm.easydb.exception import InvalidReference
 from orm import field
+from .easydb import operator
+
+tables = OrderedDict()
 
 
 class MetaTable(type):
@@ -102,15 +106,31 @@ class Table(object, metaclass=MetaTable):
     def save(self, atomic=True):
         version = 0
         entryData = []
-
         # kinda hacky but it works lol
         tableName = str(type(self)).split(".")[1].replace("'>", "")
         for column in self.column:
             columnValue = getattr(self, column)
             # print("\n columnValue in save =", columnValue)
             # print("\n self type ", type(self))
+            # add DateTime and Coordinates when done in here
+            if type(columnValue) not in [int, float, str]:
+                # do the lookup
+                lookupTable = str(type(columnValue)).split(".")[
+                    1].replace("'>", "")
+                columnValue
 
-            entryData.append(columnValue)
+                # this is hardcoded, im very tired :(
+                #print("properties = ", tables[lookupTable].__dict__)
+                if(columnValue.pk == None):
+                    columnValue.save()
+                    pass
+                ids = self.db.scan(lookupTable, operator.EQ, "id",
+                                   columnValue.pk)
+                if len(ids) == 0:
+                    raise InvalidReference
+                entryData.append(ids[0])
+            else:
+                entryData.append(columnValue)
         if self.pk is not None:
             # if pk is None then it is not in the database
             if atomic == True:
