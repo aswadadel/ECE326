@@ -4,9 +4,7 @@
 #
 # Definitions for all the field types in ORM layer
 #
-from collections import defaultdict
 from datetime import datetime
-from typing import Type
 
 import orm
 
@@ -193,7 +191,6 @@ class DateTime:
     def __set_name__(self, owner, name):
         self.name = name
     def __get__(self, obj, type=None):
-        print('here2')
         return obj.__dict__.get(self.name)
     def __set__(self, obj, value):
         finalValue = None
@@ -213,14 +210,65 @@ class DateTime:
                     raise ValueError
                 else:
                     finalValue = value
-        print('here1')
         obj.__dict__[self.name] = finalValue
-    def __init__(self, blank=False, default=None, choices=None):
-        pass
 
 
 class Coordinate:
     implemented = True
 
+    def validate(self, coord, init=False):
+        if type(coord) is not tuple or len(coord) != 2:
+            raise TypeError
+        lat, lon = coord
+        if type(lat) is not float or lat <= -90.0 or lat >= 90.0:
+            if init:
+                raise TypeError
+            else:
+                raise ValueError
+        if type(lon) is not float or lon <= -180.0 or lon >= 180.0:
+            if init:
+                raise TypeError
+            else:
+                raise ValueError
+        return coord
+        
+
     def __init__(self, blank=False, default=None, choices=None):
-        pass
+        if default is not None:
+            if type(default) is not tuple:
+                raise TypeError()
+            self.blank = True
+            self.default = self.validate(default, init=True)
+        elif blank is True:
+            self.blank = True
+            self.default = (float(),float())
+        else:
+            self.blank = False
+
+        # if choices is not None:
+        #     for choice in choices:
+        #         if type(choice) not in [float, int]:
+        #             raise TypeError
+
+        # self.choices = choices
+    def __set_name__(self, owner, name):
+        self.name = name
+    def __get__(self, obj, type=None):
+        return (obj.__dict__.get(self.name+'_lat'), obj.__dict__.get(self.name+'_lon'))
+    def __set__(self, obj, value):
+        finalValue = None
+        if type(value) is Undefined:
+            if self.blank is True:
+                finalValue = self.default
+            else:
+                raise AttributeError
+        else:
+            # if self.choices is None:
+            finalValue = self.validate(value)
+            # else:
+            #     if value not in self.choices:
+            #         raise ValueError
+            #     else:
+            #         finalValue = value
+        obj.__dict__[self.name+'_lat'] = finalValue[0]
+        obj.__dict__[self.name+'_lon'] = finalValue[1]

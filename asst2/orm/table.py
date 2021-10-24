@@ -28,7 +28,8 @@ class MetaTable(type):
         cls.column = []
         cls.field = []
         for attribute in attrs:
-            if isinstance(attrs[attribute], (field.Integer, field.Float, field.String, field.Foreign)):
+            if isinstance(attrs[attribute], \
+                ( field.Coordinate, field.Integer, field.Float, field.String, field.Foreign)):
                 if attribute in MetaTable.reservedWords or "_" in attribute:
                     raise AttributeError
                 else:
@@ -74,6 +75,8 @@ class MetaTable(type):
                 # formatting the lists
                 for index in range(len(cascValues)):
                     cascEntries[cascNames[index]] = cascValues[index]
+                cascEntries['pk'] = colValue
+                cascEntries['version'] = cascVersion
                 cascObject = cascObjectType(db, **cascEntries)
                 names.append(cls.column[count])
                 values.append(cascObject)
@@ -86,6 +89,8 @@ class MetaTable(type):
             pass
         for i in range(len(values)):
             entries[names[i]] = values[i]
+        entries['pk'] = pk
+        entries['version'] = version
         newTable = cls(db, **entries)
         return newTable
 
@@ -95,35 +100,28 @@ class MetaTable(type):
     # kwarg: the query argument for comparing
     def filter(cls, db, **kwarg):
         colName, op, value = None, None, None     
-        # print('here 1')
         if len(kwarg) == 0:
             op = operator.AL
         else:
-            # print('here 2')
             key, value = list(kwarg.items())[0]
-            if not isinstance(value, (int, float)):
+            if not isinstance(value, (int, float, str)):
                 value = value.pk
-            # print('here 3')
             if '__' in key:
                 colName, op = key.split('__')
-                # print('here 4')
                 if op.upper() not in operator.__dict__:
                     raise AttributeError
-                # print('here 5')
                 op = operator.__dict__[op.upper()]
             else:
                 colName, op = key, operator.EQ
-        # print('here 6')
-        # print(cls.__name__, op, colName, value)
+        if colName is not None and colName is 'id' and \
+            op not in [operator.EQ, operator.NE]:
+            raise AttributeError
         pks = db.scan(cls.__name__, op, column_name=colName, value=value)
         if len(pks) == 0:
             return list()
         result = list()
-        # print('here 7')
-        # print(pks)
         for pk in pks:
             row = cls.get(db, pk)
-            print(row)
             result.append(row)
         return result
 
@@ -132,7 +130,17 @@ class MetaTable(type):
     # db: database object, the database to get the object from
     # kwarg: the query argument for comparing
     def count(cls, db, **kwarg):
-        return -1
+        colName = None
+        if len(kwarg) > 0:
+            key, value = list(kwarg.items())[0]
+            if '__' in key:
+                colName, op = key.split('__')
+            else:
+                colName = key
+        if colName is not None and colName not in cls.column and colName != 'id':
+            raise AttributeError()
+        result = cls.filter(db, **kwarg)
+        return len(result)
 
 # table class
 # Implement me.
@@ -142,8 +150,18 @@ class Table(object, metaclass=MetaTable):
 
     def __init__(self, db, **kwargs):
         # object /17
-        self.pk = None      # id (primary key)
-        self.version = None  # version
+        if 'pk' in kwargs:
+            self.pk = kwargs['pk']
+        else:
+            self.pk = None
+        if 'version' in kwargs:
+            self.version = kwargs['version']
+        else:
+            self.version = None
+        # self.pk = kwargs['pk'] if 'pk' in kwargs else None
+        # self.version = kwargs['version'] if 'version' in kwargs else None
+        # self.pk = None      # id (primary key)
+        # self.version = None  # version
         # needed for save
         self.db = db
 
@@ -171,12 +189,17 @@ class Table(object, metaclass=MetaTable):
         entryData = []
         # kinda hacky but it works lol
         tableName = str(type(self)).split(".")[1].replace("'>", "")
-        for column in self.column:
+        for index, column in enumerate(self.column):
             columnValue = getattr(self, column)
             # print("\n columnValue in save =", columnValue)
             # print("\n self type ", type(self))
             # add DateTime and Coordinates when done in here
-            if type(columnValue) not in [int, float, str]:
+            
+            fieldType = type(self.field[index])
+            if fieldType is field.Coordinate:
+                entryData.extend(list(columnValue))
+            # if type(columnValue) not in [int, float, str]:
+            elif fieldType is field.Foreign:
                 # do the lookup
                 lookupTable = str(type(columnValue))\
                     .split(".")[1].replace("'>", "")
@@ -196,13 +219,13 @@ class Table(object, metaclass=MetaTable):
             # if pk is None then it is not in the database
             if atomic == True:
                 version = self.version
-            print("data to insert = ", entryData)
             self.version = self.db.update(
                 tableName, self.pk, entryData, version)
         else:
-            print("data to insert = ", entryData)
+            # print("data to insert = ", entryData)
             self.pk, self.version = self.db.insert(
                 tableName, entryData)
+        print(entryData)
         return
 
     # Delete the row from the database.

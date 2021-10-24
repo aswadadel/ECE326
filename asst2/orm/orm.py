@@ -40,6 +40,7 @@ def getSchema(module):
                 pass
             else:
                 # print(columnType)
+                isCoord = False
                 if 'Integer' in str(columnType):
                     savedType = int
                 elif 'Float' in str(columnType):
@@ -51,8 +52,10 @@ def getSchema(module):
                     if columnType.table is not None:
                         savedType = columnType.table.__name__
                     # print('here 2')
-                # elif 'Coordinate' in str(columnType):
-
+                elif 'Coordinate' in str(columnType):
+                    columns.append((columnName+'_lat', float))
+                    columns.append((columnName+'_lon', float))
+                    continue
                 # elif 'DateTime' in str(columnType):
                 #     pass
                 data = (columnName, savedType)
