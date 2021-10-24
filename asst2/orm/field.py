@@ -164,48 +164,48 @@ class Foreign:
             obj.__dict__[self.name] = value
 
 class DateTime:
-    implemented = False
+    implemented = True
 
-    # def __init__(self, blank=False, default=None, choices=None):
-    #     if default is not None:
-    #         if type(default) is not datetime and callable(default) is False:
-    #             raise TypeError
-    #         self.blank = True
-    #         self.default = default
-    #     elif blank is True:
-    #         self.blank = True
-    #         self.default = datetime.utcfromtimestamp(0)
-    #     else:
-    #         self.blank = False
+    def __init__(self, blank=False, default=None, choices=None):
+        if default is not None:
+            if type(default) is not datetime and callable(default) is False:
+                raise TypeError
+            self.blank = True
+            self.default = default
+        elif blank is True:
+            self.blank = True
+            self.default = datetime.utcfromtimestamp(0)
+        else:
+            self.blank = False
 
-    #     if choices is not None:
-    #         for choice in choices:
-    #             if type(choice) is not datetime:
-    #                 raise TypeError
-    #     self.choices = choices
-    # def __set_name__(self, owner, name):
-    #     self.name = name
-    # def __get__(self, obj, type=None):
-    #     return obj.__dict__.get(self.name)
-    # def __set__(self, obj, value):
-    #     finalValue = None
-    #     if type(value) not in [datetime, Undefined] and not callable(value):
-    #         raise TypeError
-    #     if type(value) is Undefined:
-    #         if self.blank is True:
-    #             finalValue = self.default() if callable(self.default)\
-    #                 else self.default
-    #         else:
-    #             raise AttributeError
-    #     else:
-    #         if self.choices is None:
-    #             finalValue = value
-    #         else:
-    #             if value not in self.choices:
-    #                 raise ValueError
-    #             else:
-    #                 finalValue = value
-    #     obj.__dict__[self.name] = finalValue
+        if choices is not None:
+            for choice in choices:
+                if type(choice) is not datetime:
+                    raise TypeError
+        self.choices = choices
+    def __set_name__(self, owner, name):
+        self.name = name
+    def __get__(self, obj, type=None):
+        return obj.__dict__.get(self.name)
+    def __set__(self, obj, value):
+        finalValue = None
+        if type(value) not in [datetime, Undefined] and not callable(value):
+            raise TypeError
+        if type(value) is Undefined:
+            if self.blank is True:
+                finalValue = self.default() if callable(self.default)\
+                    else self.default
+            else:
+                raise AttributeError
+        else:
+            if self.choices is None:
+                finalValue = value
+            else:
+                if value not in self.choices:
+                    raise ValueError
+                else:
+                    finalValue = value
+        obj.__dict__[self.name] = finalValue
     # def __init__(self, blank=False, default=None, choices=None):
     #     pass
 
