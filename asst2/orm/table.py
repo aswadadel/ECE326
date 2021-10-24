@@ -27,7 +27,6 @@ class MetaTable(type):
         MetaTable.tables[name] = cls
         cls.column = []
         cls.field = []
-
         for attribute in attrs:
             if isinstance(attrs[attribute], (field.Integer, field.Float, field.String, field.Foreign)):
                 if attribute in MetaTable.reservedWords or "_" in attribute:
@@ -118,14 +117,16 @@ class Table(object, metaclass=MetaTable):
 
         # setting values for object
         for column in self.column:
-            fieldValue = getattr(type(self), column)
+            # fieldValue = getattr(type(self), column)
             if column not in kwargs:
                 # print("\n column = ", column)
                 # print("fieldValue = ", fieldValue)
-                setattr(self, column, fieldValue.default)
+                # setattr(self, column, fieldValue.default)
+                setattr(self, column, field.Undefined())
             else:
                 # print("column in kwargs=", column)
                 # print("field Value found = ", kwargs[column])
+                # setattr(self, column, kwargs[column])
                 setattr(self, column, kwargs[column])
         return
         # FINISH ME
@@ -145,8 +146,8 @@ class Table(object, metaclass=MetaTable):
             # add DateTime and Coordinates when done in here
             if type(columnValue) not in [int, float, str]:
                 # do the lookup
-                lookupTable = str(type(columnValue)).split(".")[
-                    1].replace("'>", "")
+                lookupTable = str(type(columnValue))\
+                    .split(".")[1].replace("'>", "")
                 columnValue
 
                 if(columnValue.pk == None):

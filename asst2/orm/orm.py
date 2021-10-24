@@ -49,10 +49,10 @@ def getSchema(module):
                     if columnType.table is not None:
                         savedType = columnType.table.__name__
                 # elif 'Coordinate in str(columnType):
-                # elif 'DateTime in str(columnType):
+                # elif 'DateTime' in str(columnType):
+                #     pass
                 data = (columnName, savedType)
                 if savedType != None:
                     columns.append(data)
         schema.append((tableName, tuple(columns)))
-    # print(schema)
     return schema
