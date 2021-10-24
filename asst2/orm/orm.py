@@ -22,6 +22,7 @@ def setup(database_name, module):
             str(database_name)))
 
     schema = getSchema(module)
+    # print(schema)
     return Database(schema)
 # note: the export function is defined in __init__.py
 
@@ -46,9 +47,12 @@ def getSchema(module):
                 elif 'String' in str(columnType):
                     savedType = str
                 elif 'Foreign' in str(columnType):
+                    # print('here 1')
                     if columnType.table is not None:
                         savedType = columnType.table.__name__
-                # elif 'Coordinate in str(columnType):
+                    # print('here 2')
+                # elif 'Coordinate' in str(columnType):
+
                 # elif 'DateTime' in str(columnType):
                 #     pass
                 data = (columnName, savedType)

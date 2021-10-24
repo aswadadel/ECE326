@@ -63,7 +63,8 @@ class MetaTable(type):
                 cascNames = []
                 cascValues = []
                 cascEntries = {}
-                cascObjectType = getattr(cls, cls.column[count]).table
+                # cascObjectType = getattr(cls, cls.column[count]).table
+                cascObjectType = cls.field[count].table
 
                 for colIndex, colName in enumerate(MetaTable.tables[cascTableName].column):
                     #print("name appended = ", colName)
@@ -94,32 +95,32 @@ class MetaTable(type):
     # kwarg: the query argument for comparing
     def filter(cls, db, **kwarg):
         colName, op, value = None, None, None     
-        print('here 1')
+        # print('here 1')
         if len(kwarg) == 0:
             op = operator.AL
         else:
-            print('here 2')
+            # print('here 2')
             key, value = list(kwarg.items())[0]
             if not isinstance(value, (int, float)):
                 value = value.pk
-            print('here 3')
+            # print('here 3')
             if '__' in key:
                 colName, op = key.split('__')
-                print('here 4')
+                # print('here 4')
                 if op.upper() not in operator.__dict__:
                     raise AttributeError
-                print('here 5')
+                # print('here 5')
                 op = operator.__dict__[op.upper()]
             else:
                 colName, op = key, operator.EQ
-        print('here 6')
+        # print('here 6')
         # print(cls.__name__, op, colName, value)
         pks = db.scan(cls.__name__, op, column_name=colName, value=value)
         if len(pks) == 0:
             return list()
         result = list()
-        print('here 7')
-        print(pks)
+        # print('here 7')
+        # print(pks)
         for pk in pks:
             row = cls.get(db, pk)
             print(row)

@@ -4,7 +4,9 @@
 #
 # Definitions for all the field types in ORM layer
 #
+from collections import defaultdict
 from datetime import datetime
+from typing import Type
 
 import orm
 
@@ -98,8 +100,8 @@ class Float:
 class String:
     def __init__(self, blank=False, default=None, choices=None):
         if default is not None:
-            if type(default) is not str:
-                raise TypeError
+            if type(default) is not str and not callable(default):
+                raise TypeError('default value error')
             self.blank = True
             self.default = default
         elif blank is True:
@@ -112,7 +114,12 @@ class String:
             for choice in choices:
                 if type(choice) is not str:
                     raise TypeError
-
+            if not callable(default) and \
+                default is not None \
+                and default not in choices:
+                raise TypeError
+            # if default not in choices:
+            #     raise TypeError
         self.choices = choices
 
     def __set_name__(self, owner, name):
@@ -127,7 +134,8 @@ class String:
             raise TypeError
         if type(value) is Undefined:
             if self.blank is True:
-                finalValue = self.default
+                finalValue = self.default() if callable(self.default)\
+                    else self.default
             else:
                 raise AttributeError
         else:
@@ -177,15 +185,15 @@ class DateTime:
             self.default = datetime.utcfromtimestamp(0)
         else:
             self.blank = False
-
-        if choices is not None:
-            for choice in choices:
-                if type(choice) is not datetime:
-                    raise TypeError
-        self.choices = choices
+        # if choices is not None:
+        #     for choice in choices:
+        #         if type(choice) is not datetime:
+        #             raise TypeError
+        # self.choices = choices
     def __set_name__(self, owner, name):
         self.name = name
     def __get__(self, obj, type=None):
+        print('here2')
         return obj.__dict__.get(self.name)
     def __set__(self, obj, value):
         finalValue = None
@@ -205,13 +213,14 @@ class DateTime:
                     raise ValueError
                 else:
                     finalValue = value
+        print('here1')
         obj.__dict__[self.name] = finalValue
-    # def __init__(self, blank=False, default=None, choices=None):
-    #     pass
+    def __init__(self, blank=False, default=None, choices=None):
+        pass
 
 
 class Coordinate:
-    implemented = False
+    implemented = True
 
     def __init__(self, blank=False, default=None, choices=None):
         pass
