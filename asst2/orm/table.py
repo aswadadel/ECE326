@@ -11,6 +11,7 @@ from typing import OrderedDict
 from orm.easydb.exception import InvalidReference
 from orm import field
 from .easydb import operator
+from datetime import datetime
 
 tables = OrderedDict()
 
@@ -29,7 +30,7 @@ class MetaTable(type):
         cls.field = []
         for attribute in attrs:
             if isinstance(attrs[attribute], \
-                ( field.Coordinate, field.Integer, field.Float, field.String, field.Foreign)):
+                ( field.DateTime, field.Coordinate, field.Integer, field.Float, field.String, field.Foreign)):
                 if attribute in MetaTable.reservedWords or "_" in attribute:
                     raise AttributeError
                 else:
@@ -49,15 +50,31 @@ class MetaTable(type):
         names = []
         values = []
         entries = {}
+        passedLat = False
+        coordTemp = None
+        fieldIndex = 0
         for count, colValue in enumerate(columnVal):
             #print("\n count = ", count)
             #print("fieldValue = ", colValue)
-
             # look up the foreign
-            if type(cls.field[count]) == field.Foreign:
+            if type(cls.field[fieldIndex]) == field.Coordinate:
+                if passedLat:
+                    passedLat = False
+                    names.append(cls.column[fieldIndex])
+                    values.append((coordTemp, colValue))
+                else:
+                    passedLat = True
+                    fieldIndex -=1
+                    coordTemp = colValue
+            elif type(cls.field[fieldIndex]) == field.DateTime:
+                names.append(cls.column[fieldIndex])
+                values.append(datetime.fromtimestamp(colValue))
+            elif type(cls.field[fieldIndex]) == field.Foreign:
                 #print("\n foreign detected field was =", cls.column[count])
                 # MIGHT BE A SOURCE OF BUGS WITH CUSTOM
-                cascTableName = cls.column[count].capitalize()
+                # cascTableName = cls.column[fieldIndex].capitalize()
+                # print()
+                cascTableName = cls.field[fieldIndex].table.__name__
                 cascVal, cascVersion = db.get(
                     cascTableName, colValue)
                 #print("cascVal = ", cascVal)
@@ -65,28 +82,33 @@ class MetaTable(type):
                 cascValues = []
                 cascEntries = {}
                 # cascObjectType = getattr(cls, cls.column[count]).table
-                cascObjectType = cls.field[count].table
+                cascObjectType = cls.field[fieldIndex].table
 
+                resultIndex = 0
                 for colIndex, colName in enumerate(MetaTable.tables[cascTableName].column):
-                    #print("name appended = ", colName)
-                    #print("value appended = ", cascVal[colIndex])
                     cascNames.append(colName)
-                    cascValues.append(cascVal[colIndex])
+                    colType = MetaTable.tables[cascTableName].__dict__[colName]
+                    if type(colType) is field.Coordinate:
+                        cascValues.append((cascVal[resultIndex],cascVal[resultIndex+1]))
+                        resultIndex += 1
+                    else:
+                        cascValues.append(cascVal[resultIndex])
+                    resultIndex += 1
+                    
                 # formatting the lists
                 for index in range(len(cascValues)):
                     cascEntries[cascNames[index]] = cascValues[index]
                 cascEntries['pk'] = colValue
                 cascEntries['version'] = cascVersion
                 cascObject = cascObjectType(db, **cascEntries)
-                names.append(cls.column[count])
+                names.append(cls.column[fieldIndex])
                 values.append(cascObject)
                 pass
             else:
                 # not a foreign
-                names.append(cls.column[count])
+                names.append(cls.column[fieldIndex])
                 values.append(colValue)
-                pass
-            pass
+            fieldIndex += 1
         for i in range(len(values)):
             entries[names[i]] = values[i]
         entries['pk'] = pk
@@ -104,7 +126,7 @@ class MetaTable(type):
             op = operator.AL
         else:
             key, value = list(kwarg.items())[0]
-            if not isinstance(value, (int, float, str)):
+            if not isinstance(value, (int, float, str, tuple, datetime)):
                 value = value.pk
             if '__' in key:
                 colName, op = key.split('__')
@@ -116,11 +138,18 @@ class MetaTable(type):
         if colName is not None and colName is 'id' and \
             op not in [operator.EQ, operator.NE]:
             raise AttributeError
-        pks = db.scan(cls.__name__, op, column_name=colName, value=value)
-        if len(pks) == 0:
-            return list()
+        pks, pks2 = None, None
+        finalPks = None
         result = list()
-        for pk in pks:
+        if type(value) is tuple:
+            pks = db.scan(cls.__name__, op, column_name=colName+'_lat', value=value[0])
+            pks2 = db.scan(cls.__name__, op, column_name=colName+'_lon', value=value[1])
+            finalPks = list(set(pks) & set(pks2))
+        elif type(value) is datetime:
+            finalPks = db.scan(cls.__name__, op, column_name=colName, value=value.timestamp())
+        else:
+            finalPks = db.scan(cls.__name__, op, column_name=colName, value=value)
+        for pk in finalPks:
             row = cls.get(db, pk)
             result.append(row)
         return result
@@ -199,6 +228,8 @@ class Table(object, metaclass=MetaTable):
             if fieldType is field.Coordinate:
                 entryData.extend(list(columnValue))
             # if type(columnValue) not in [int, float, str]:
+            elif fieldType is field.DateTime:
+                entryData.append(columnValue.timestamp())
             elif fieldType is field.Foreign:
                 # do the lookup
                 lookupTable = str(type(columnValue))\
@@ -225,7 +256,6 @@ class Table(object, metaclass=MetaTable):
             # print("data to insert = ", entryData)
             self.pk, self.version = self.db.insert(
                 tableName, entryData)
-        print(entryData)
         return
 
     # Delete the row from the database.

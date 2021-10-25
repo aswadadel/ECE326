@@ -161,6 +161,7 @@ class Foreign:
 
     def __set__(self, obj, value):
         if self.blank is False and value is None:
+            print(obj, self.blank, value)
             raise TypeError('here2')
         elif self.blank is True and value is None:
             obj.__dict__[self.name] = value
@@ -180,26 +181,30 @@ class DateTime:
             self.default = default
         elif blank is True:
             self.blank = True
-            self.default = datetime.utcfromtimestamp(0)
+            self.default = datetime.fromtimestamp(0)
         else:
             self.blank = False
-        # if choices is not None:
-        #     for choice in choices:
-        #         if type(choice) is not datetime:
-        #             raise TypeError
-        # self.choices = choices
+        if choices is not None:
+            for choice in choices:
+                if type(choice) is not datetime:
+                    raise TypeError
+        self.choices = choices
     def __set_name__(self, owner, name):
         self.name = name
     def __get__(self, obj, type=None):
-        return obj.__dict__.get(self.name)
+        return datetime.fromtimestamp(obj.__dict__.get(self.name))
     def __set__(self, obj, value):
         finalValue = None
         if type(value) not in [datetime, Undefined] and not callable(value):
-            raise TypeError
+            raise TypeError(type(value) not in [datetime, Undefined],not callable(value))
         if type(value) is Undefined:
             if self.blank is True:
-                finalValue = self.default() if callable(self.default)\
-                    else self.default
+                if callable(self.default):
+                    finalValue = self.default()
+                else:
+                    finalValue = self.default
+                # finalValue = self.default() if callable(self.default)\
+                #     else self.default
             else:
                 raise AttributeError
         else:
@@ -210,7 +215,7 @@ class DateTime:
                     raise ValueError
                 else:
                     finalValue = value
-        obj.__dict__[self.name] = finalValue
+        obj.__dict__[self.name] = finalValue.timestamp()
 
 
 class Coordinate:
@@ -218,7 +223,7 @@ class Coordinate:
 
     def validate(self, coord, init=False):
         if type(coord) is not tuple or len(coord) != 2:
-            raise TypeError
+            raise TypeError(coord)
         lat, lon = coord
         if type(lat) is not float or lat <= -90.0 or lat >= 90.0:
             if init:

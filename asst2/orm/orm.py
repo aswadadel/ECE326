@@ -23,7 +23,8 @@ def setup(database_name, module):
 
     schema = getSchema(module)
     # print(schema)
-    return Database(schema)
+    db = Database(schema)
+    return db
 # note: the export function is defined in __init__.py
 
 
@@ -40,7 +41,6 @@ def getSchema(module):
                 pass
             else:
                 # print(columnType)
-                isCoord = False
                 if 'Integer' in str(columnType):
                     savedType = int
                 elif 'Float' in str(columnType):
@@ -56,8 +56,9 @@ def getSchema(module):
                     columns.append((columnName+'_lat', float))
                     columns.append((columnName+'_lon', float))
                     continue
-                # elif 'DateTime' in str(columnType):
-                #     pass
+                elif 'DateTime' in str(columnType):
+                    columns.append((columnName, float))
+                    continue
                 data = (columnName, savedType)
                 if savedType != None:
                     columns.append(data)
