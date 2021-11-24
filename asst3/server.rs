@@ -24,7 +24,7 @@ fn single_threaded(listener: TcpListener, table_schema: Vec<Table>, verbose: boo
      * you probably need to use table_schema somewhere here or in
      * Database::new 
      */
-    let mut db = Database { };
+    let mut db = Database::new(table_schema);
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
