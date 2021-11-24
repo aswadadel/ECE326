@@ -144,7 +144,6 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
             {
                 //Immigration
                 println!("Entered Immigration");
-
                 /*
                  * This is a lot like when I cross the border and 
                  * the US customs officer asking me what the address of the hotel im staying in 
@@ -163,7 +162,6 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
                     {
                         println!("Got the impostor");
                         return Err(Response::BAD_FOREIGN);
-                        
                     }
                 }
                 else
@@ -175,7 +173,6 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
 
         }
     }
-
     // Getting targetTable and setting up row ID after checks passed
     let target_table = db.tables.get_mut(&table_id).unwrap(); 
     let row_id = target_table.table_map.len() as i64 + 1;
@@ -191,13 +188,117 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
 fn handle_update(db: & mut Database, table_id: i32, object_id: i64, 
     version: i64, values: Vec<Value>) -> Result<Response, i32> 
 {
-    Err(Response::UNIMPLEMENTED)
+    println!("entered update");
+    //Error Checking on Tables
+    if table_id < 1 || table_id > db.tables.len() as i32 {
+        println!("found a bad table");
+        return Err(Response::BAD_TABLE);
+    }
+
+    let table_definition = db.table_defintions.get(&table_id).unwrap();
+    //Error Checking for bad number of entries
+    if table_definition.t_cols.len() != values.len() {
+        return Err(Response::BAD_ROW);
+    }
+    //Error Checking on row contents (values)
+    for index in 0..values.len() {
+        let required_type = table_definition.t_cols[index].c_type.clone();
+        println!("required type be like {}",required_type);
+        //println!("actual type be like {}",&values[index]);
+        match &values[index] {
+            Value::Null => if required_type != Value::NULL {
+                println!("found an invalid Null");
+                return Err(Response::BAD_VALUE);
+            },
+            Value::Integer(num) => if required_type != Value::INTEGER {
+                println!("found an invalid Integer");
+                return Err(Response::BAD_VALUE);
+            },
+            Value::Float(num) => if required_type != Value::FLOAT {
+                println!("found an invalid Float");
+                return Err(Response::BAD_VALUE);
+            },
+            Value::Text(text) => if required_type != Value::STRING {
+                println!("found an invalid Text");
+                return Err(Response::BAD_VALUE);
+            },
+            Value::Foreign(key) => if required_type != Value::FOREIGN { // look up the foreign
+                println!("Found an invalid Foreign");
+                return Err(Response::BAD_VALUE);
+            }
+            else
+            {
+                let lookup_table_id = table_definition.t_cols[index].c_ref;
+                if db.tables.contains_key(&lookup_table_id)
+                {
+                    let lookup_table = db.tables.get(&lookup_table_id).unwrap();
+                    let lookup_table_id_64 = lookup_table_id.clone() as i64;
+                    if lookup_table.table_map.contains_key(&key) == false
+                    {
+                        println!("Got the impostor");
+                        return Err(Response::BAD_FOREIGN);    
+                    }
+                }
+                else
+                {
+                    println!("Got the impostor table");
+                    return Err(Response::BAD_FOREIGN);
+                }
+            }
+        }
+    }
+    // Getting the targetTable
+    let target_table = db.tables.get_mut(&table_id).unwrap(); 
+
+    //Error checking for invalid gets
+    if target_table.table_map.contains_key(&object_id) == false
+    {
+        return Err(Response::NOT_FOUND)
+    }
+
+    //Copying and returning
+    let target_row  = target_table.table_map.get(&object_id).unwrap();
+    let mut row_version = target_row.version;
+    if version != row_version && version != 0
+    {
+        return Err(Response::TXN_ABORT);    
+    }
+    row_version = row_version + 1;
+    let row_to_insert = Row::new(row_version,object_id,values);
+    target_table.table_map.insert(object_id,row_to_insert);
+    //println!("inserted rowID  = {} into table {}",object_id,table_id);
+    let resp = Ok(Response::Update(row_version));
+    //println!("exiting update");
+    return resp
 }
 
 fn handle_drop(db: & mut Database, table_id: i32, object_id: i64) 
     -> Result<Response, i32>
 {
-    Err(Response::UNIMPLEMENTED)
+    println!("entered insert onto tableID = {}", table_id);
+    let version = 1;
+    //Error Checking
+    println!("tables length = {} ",db.tables.len());
+    
+    //Error Checking on Tables
+    if table_id < 1 || table_id > db.tables.len() as i32 {
+        println!("found a bad table");
+        return Err(Response::BAD_TABLE);
+    }
+
+    // Getting the targetTable
+    let target_table = db.tables.get(&table_id).unwrap(); 
+
+    //Error checking for invalid gets
+    if target_table.table_map.contains_key(&object_id) == false
+    {
+        return Err(Response::NOT_FOUND)
+    }
+
+
+
+    let resp = Ok(Response::Drop);
+    return resp
 }
 
 fn handle_get(db: & Database, table_id: i32, object_id: i64) 
