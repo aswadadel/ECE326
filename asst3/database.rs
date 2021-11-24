@@ -98,9 +98,10 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
     -> Result<Response, i32> 
 {
     // Create row and insert into hashTable?
-    //println!("entered insert onto tableID = {}", table_id);
+    println!("entered insert onto tableID = {}", table_id);
     let version = 1;
     //Error Checking
+    println!("tables length = {} ",db.tables.len());
     
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
@@ -109,7 +110,6 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
     }
 
     let table_definition = db.table_defintions.get(&table_id).unwrap();
-
     //Error Checking for bad number of entries
     if table_definition.t_cols.len() != values.len() {
         return Err(Response::BAD_ROW);
@@ -118,6 +118,7 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
     for index in 0..values.len() {
         let required_type = table_definition.t_cols[index].c_type.clone();
         println!("required type be like {}",required_type);
+        //println!("actual type be like {}",&values[index]);
         match &values[index] {
             Value::Null => if required_type != Value::NULL {
                 println!("found an invalid Null");
@@ -181,7 +182,7 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
 
     let row_to_insert = Row::new(version,row_id,values);
     target_table.table_map.insert(row_id,row_to_insert);
-    //println!("inserted rowID  = {} into table {}",row_id,table_id);
+    println!("inserted rowID  = {} into table {}",row_id,table_id);
     let resp = Ok(Response::Insert(row_id,version));
     println!("exiting insert");
     return resp
@@ -202,6 +203,11 @@ fn handle_drop(db: & mut Database, table_id: i32, object_id: i64)
 fn handle_get(db: & Database, table_id: i32, object_id: i64) 
     -> Result<Response, i32>
 {
+    // Create row and insert into hashTable?
+    println!("entered get onto tableID = {}", table_id);
+   
+    //Error Checking
+    println!("tables length = {} ",db.tables.len());
    
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
@@ -209,6 +215,14 @@ fn handle_get(db: & Database, table_id: i32, object_id: i64)
         return Err(Response::BAD_TABLE);
     }
 
+    //Error Checking on row format
+
+
+    //Error Checking on row contents (values)
+    //    for index in 0..values.len() {
+    //    }
+
+    // Getting the targetTable
     let target_table = db.tables.get(&table_id).unwrap(); 
 
     //Error checking for invalid gets
