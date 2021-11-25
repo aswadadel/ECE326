@@ -12,7 +12,6 @@ use std::io;
 use std::fmt;
 use packet::Value;
 
-#[derive(Debug)]
 pub struct Column {
     pub c_name: String, /* column name */
     pub c_id: i32,      /* column id */
