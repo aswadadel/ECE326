@@ -98,14 +98,14 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
     -> Result<Response, i32> 
 {
     // Create row and insert into hashTable?
-    println!("entered insert onto tableID = {}", table_id);
+    // println!("entered insert onto tableID = {}", table_id);
     let version = 1;
     //Error Checking
-    println!("tables length = {} ",db.tables.len());
+    // println!("tables length = {} ",db.tables.len());
     
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
-        println!("found a bad table");
+        // println!("found a bad table");
         return Err(Response::BAD_TABLE);
     }
 
@@ -117,33 +117,33 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
     //Error Checking on row contents (values)
     for index in 0..values.len() {
         let required_type = table_definition.t_cols[index].c_type.clone();
-        println!("required type be like {}",required_type);
+        // println!("required type be like {}",required_type);
         //println!("actual type be like {}",&values[index]);
         match &values[index] {
             Value::Null => if required_type != Value::NULL {
-                println!("found an invalid Null");
+                // println!("found an invalid Null");
                 return Err(Response::BAD_VALUE);
             },
             Value::Integer(num) => if required_type != Value::INTEGER {
-                println!("found an invalid Integer");
+                // println!("found an invalid Integer");
                 return Err(Response::BAD_VALUE);
             },
             Value::Float(num) => if required_type != Value::FLOAT {
-                println!("found an invalid Float");
+                // println!("found an invalid Float");
                 return Err(Response::BAD_VALUE);
             },
             Value::Text(text) => if required_type != Value::STRING {
-                println!("found an invalid Text");
+                // println!("found an invalid Text");
                 return Err(Response::BAD_VALUE);
             },
             Value::Foreign(key) => if required_type != Value::FOREIGN { // look up the foreign
-                println!("Found an invalid Foreign");
+                // println!("Found an invalid Foreign");
                 return Err(Response::BAD_VALUE);
             }
             else
             {
                 //Immigration
-                println!("Entered Immigration");
+                // println!("Entered Immigration");
                 /*
                  * This is a lot like when I cross the border and 
                  * the US customs officer asking me what the address of the hotel im staying in 
@@ -160,13 +160,13 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
                     let lookup_table_id_64 = lookup_table_id.clone() as i64;
                     if lookup_table.table_map.contains_key(&key) == false
                     {
-                        println!("Got the impostor");
+                        // println!("Got the impostor");
                         return Err(Response::BAD_FOREIGN);
                     }
                 }
                 else
                 {
-                    println!("Got the impostor table");
+                    // println!("Got the impostor table");
                     return Err(Response::BAD_FOREIGN);
                 }
             }
@@ -179,19 +179,19 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
 
     let row_to_insert = Row::new(version,row_id,values);
     target_table.table_map.insert(row_id,row_to_insert);
-    println!("inserted rowID  = {} into table {}",row_id,table_id);
+    // println!("inserted rowID  = {} into table {}",row_id,table_id);
     let resp = Ok(Response::Insert(row_id,version));
-    println!("exiting insert");
+    // println!("exiting insert");
     return resp
 }
 
 fn handle_update(db: & mut Database, table_id: i32, object_id: i64, 
     version: i64, values: Vec<Value>) -> Result<Response, i32> 
 {
-    println!("entered update");
+    // println!("entered update");
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
-        println!("found a bad table");
+        // println!("found a bad table");
         return Err(Response::BAD_TABLE);
     }
 
@@ -203,27 +203,27 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
     //Error Checking on row contents (values)
     for index in 0..values.len() {
         let required_type = table_definition.t_cols[index].c_type.clone();
-        println!("required type be like {}",required_type);
+        // println!("required type be like {}",required_type);
         //println!("actual type be like {}",&values[index]);
         match &values[index] {
             Value::Null => if required_type != Value::NULL {
-                println!("found an invalid Null");
+                // println!("found an invalid Null");
                 return Err(Response::BAD_VALUE);
             },
             Value::Integer(num) => if required_type != Value::INTEGER {
-                println!("found an invalid Integer");
+                // println!("found an invalid Integer");
                 return Err(Response::BAD_VALUE);
             },
             Value::Float(num) => if required_type != Value::FLOAT {
-                println!("found an invalid Float");
+                // println!("found an invalid Float");
                 return Err(Response::BAD_VALUE);
             },
             Value::Text(text) => if required_type != Value::STRING {
-                println!("found an invalid Text");
+                // println!("found an invalid Text");
                 return Err(Response::BAD_VALUE);
             },
             Value::Foreign(key) => if required_type != Value::FOREIGN { // look up the foreign
-                println!("Found an invalid Foreign");
+                // println!("Found an invalid Foreign");
                 return Err(Response::BAD_VALUE);
             }
             else
@@ -235,13 +235,13 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
                     let lookup_table_id_64 = lookup_table_id.clone() as i64;
                     if lookup_table.table_map.contains_key(&key) == false
                     {
-                        println!("Got the impostor");
+                        // println!("Got the impostor");
                         return Err(Response::BAD_FOREIGN);    
                     }
                 }
                 else
                 {
-                    println!("Got the impostor table");
+                    // println!("Got the impostor table");
                     return Err(Response::BAD_FOREIGN);
                 }
             }
@@ -275,14 +275,14 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
 fn handle_drop(db: & mut Database, table_id: i32, object_id: i64) 
     -> Result<Response, i32>
 {
-    println!("entered insert onto tableID = {}", table_id);
+    // println!("entered insert onto tableID = {}", table_id);
     let version = 1;
     //Error Checking
-    println!("tables length = {} ",db.tables.len());
+    // println!("tables length = {} ",db.tables.len());
     
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
-        println!("found a bad table");
+        // println!("found a bad table");
         return Err(Response::BAD_TABLE);
     }
 
@@ -305,14 +305,14 @@ fn handle_get(db: & Database, table_id: i32, object_id: i64)
     -> Result<Response, i32>
 {
     // Create row and insert into hashTable?
-    println!("entered get onto tableID = {}", table_id);
+    // println!("entered get onto tableID = {}", table_id);
    
     //Error Checking
-    println!("tables length = {} ",db.tables.len());
+    // println!("tables length = {} ",db.tables.len());
    
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
-        println!("found a bad table");
+        // println!("found a bad table");
         return Err(Response::BAD_TABLE);
     }
 
@@ -343,6 +343,86 @@ fn handle_query(db: & Database, table_id: i32, column_id: i32,
     operator: i32, other: Value) 
     -> Result<Response, i32>
 {
-    Err(Response::UNIMPLEMENTED)
+    let column_index = (column_id-1) as usize;
+    // check table_id is valid
+    if let None = db.tables.get(&table_id) {
+        return Err(Response::BAD_TABLE);
+    };
+    //check column_id valid
+    if let None = db.table_defintions.get(&table_id).unwrap().
+    t_cols.get(column_index) {
+        if column_id != 0 { 
+            return Err(Response::BAD_QUERY)
+        } 
+    };
+    // check column-type mismatch
+    let col_type = if column_id != 0 
+    { db.table_defintions.get(&table_id).unwrap().t_cols.get(column_index).unwrap().c_type }
+    else { Value::FOREIGN };
+
+    if !(match other {
+        Value::Null => operator==OP_AL,
+        Value::Integer(_) => col_type == Value::INTEGER,
+        Value::Float(_) => col_type == Value::FLOAT,
+        Value::Text(_) => col_type == Value::STRING,
+        Value::Foreign(_) => col_type == Value::FOREIGN && [OP_EQ, OP_NE].contains(&operator),
+    }) { return Err(Response::BAD_QUERY)};
+
+    // burrow rows
+    let rows = &db.tables.get(&table_id).unwrap().table_map;
+
+    // do the scanning
+    let results_ids: Vec<i64> = match operator {
+        OP_AL => {
+            if column_id != 0 { return Err(Response::BAD_QUERY)};
+            rows.keys().cloned().collect()
+        }
+        OP_EQ => {
+            if column_id == 0 { 
+                rows.keys().filter(|k| Value::Foreign(*k.clone() as i64)==other).cloned().collect()
+            } else {
+                rows.iter().filter_map(|(id, row)| {
+                    if row.values[column_index] == other { Some(id.clone() as i64)}
+                    else { None }
+                }).collect()
+            }
+        }
+        OP_NE => {
+            if column_id == 0 { 
+                rows.keys().filter(|k| Value::Foreign(*k.clone() as i64)!=other).cloned().collect()
+            } else {
+                rows.iter().filter_map(|(id, row)| {
+                    if row.values[column_index] != other { Some(id.clone() as i64)}
+                    else { None }
+                }).collect()
+            }
+        }
+        OP_LT => {
+            rows.iter().filter_map(|(id, row)| {
+                if row.values[column_index] < other { Some(id.clone() as i64)}
+                else { None }
+            }).collect()
+        }
+        OP_GT => {
+            rows.iter().filter_map(|(id, row)| {
+                if row.values[column_index] > other { Some(id.clone() as i64)}
+                else { None }
+            }).collect()
+        }
+        OP_LE => {
+            rows.iter().filter_map(|(id, row)| {
+                if row.values[column_index] <= other { Some(id.clone() as i64)}
+                else { None }
+            }).collect()
+        }
+        OP_GE => {
+            rows.iter().filter_map(|(id, row)| {
+                if row.values[column_index] >= other { Some(id.clone() as i64)}
+                else { None }
+            }).collect()
+        }
+        _ => return Err(Response::BAD_QUERY)
+    };
+    Ok(Response::Query(results_ids))
 }
 
