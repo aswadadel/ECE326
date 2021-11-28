@@ -17,36 +17,60 @@ use packet::Network;
 use schema::Table;
 use database;
 use database::Database;
+use std::thread;
+use std::sync::{Arc, Mutex};
 
-fn single_threaded(listener: TcpListener, table_schema: Vec<Table>, verbose: bool)
-{
-    /* 
-     * you probably need to use table_schema somewhere here or in
-     * Database::new 
-     */
-    let mut db = Database::new(table_schema);
+// fn single_threaded(listener: TcpListener, table_schema: Vec<Table>, verbose: bool)
+// {
+//     /* 
+//      * you probably need to use table_schema somewhere here or in
+//      * Database::new 
+//      */
+//     let mut db = Database::new(table_schema);
 
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
+//     for stream in listener.incoming() {
+//         let stream = stream.unwrap();
         
-        if verbose {
-            println!("Connected to {}", stream.peer_addr().unwrap());
-        }
+//         if verbose {
+//             println!("Connected to {}", stream.peer_addr().unwrap());
+//         }
         
-        match handle_connection(stream, &mut db) {
-            Ok(()) => {
-                if verbose {
-                    println!("Disconnected.");
-                }
-            },
-            Err(e) => eprintln!("Connection error: {:?}", e),
-        };
-    }
-}
+//         match handle_connection(stream, &mut db) {
+//             Ok(()) => {
+//                 if verbose {
+//                     println!("Disconnected.");
+//                 }
+//             },
+//             Err(e) => eprintln!("Connection error: {:?}", e),
+//         };
+//     }
+// }
 
 fn multi_threaded(listener: TcpListener, table_schema: Vec<Table>, verbose: bool)
 {
     // TODO: implement me
+    let db = Arc::new(Mutex::new(Database::new(table_schema)));
+
+    for stream in listener.incoming() {
+        let stream = stream.unwrap();
+
+        if verbose {
+            println!("Connected to {}", stream.peer_addr().unwrap());
+        }
+
+        let db_clone = db.clone();
+
+        thread::spawn(move ||{
+            match handle_connection(stream, db_clone) {
+                Ok(()) => {
+                    if verbose {
+                        println!("Disconnected.");
+                    }
+                },
+                Err(e) => eprintln!("Connection error: {:?}", e),
+            };
+        });
+    }
 }
 
 /* Sets up the TCP connection between the database client and server */
@@ -65,13 +89,13 @@ pub fn run_server(table_schema: Vec<Table>, ip_address: String, verbose: bool)
     /*
      * TODO: replace with multi_threaded
      */
-    single_threaded(listener, table_schema, verbose);
+    multi_threaded(listener, table_schema, verbose);
 }
 
 impl Network for TcpStream {}
 
 /* Receive the request packet from ORM and send a response back */
-fn handle_connection(mut stream: TcpStream, db: & mut Database) 
+fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Database>>) 
     -> io::Result<()> 
 {
     /* 
@@ -79,6 +103,14 @@ fn handle_connection(mut stream: TcpStream, db: & mut Database)
      * TODO: respond with SERVER_BUSY when attempting to accept more than
      *       4 simultaneous clients.
      */
+    {
+        let mut guard = db.lock().unwrap();
+        let count = &mut guard.conn_count;
+        // println!("{}", count);
+        if *count >= 4 { stream.respond(&Response::Error(Response::SERVER_BUSY))?; return Ok(()) };
+        *count += 1;
+    }
+
     stream.respond(&Response::Connected)?;
 
     loop {
@@ -93,13 +125,19 @@ fn handle_connection(mut stream: TcpStream, db: & mut Database)
         
         /* we disconnect with client upon receiving Exit */
         if let Command::Exit = request.command {
+            {
+                let mut guard = db.lock().unwrap();
+                guard.conn_count -= 1;
+            }
             break;
         }
         
         /* Send back a response */
-        let response = database::handle_request(request, db);
-        
+        let mut guard = db.lock().unwrap();
+        let response = database::handle_request(request, &mut guard);
         stream.respond(&response)?;
+        drop(guard);
+
         stream.flush()?;
     }
 

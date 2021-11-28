@@ -12,7 +12,7 @@ use std::io;
 use std::fmt;
 use packet::Value;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Column {
     pub c_name: String, /* column name */
     pub c_id: i32,      /* column id */

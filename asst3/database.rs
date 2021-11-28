@@ -25,9 +25,6 @@ use schema::{Table, Column};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
-
-#[derive(Debug)]
 pub struct Row {
     version: i64,
     pk: i64,
@@ -40,7 +37,6 @@ impl Row {
         return Row { version: version, pk: pk, values: value, refs: HashSet::new() };
     }
 }
-#[derive(Debug)]
 pub struct TableContent {
     table_map: HashMap<i64,Row>,
     last_index: i64
@@ -53,22 +49,23 @@ impl TableContent {
 }
 /* You can implement your Database structure here
  * Q: How you will store your tables into the database? */
-#[derive(Debug)]
 pub struct Database {
     table_defintions: HashMap<i32,Table>,
-    tables: HashMap<i32,TableContent>
+    tables: HashMap<i32,TableContent>,
+    pub conn_count: i32
  }
  impl Database {
      pub fn new(schemas: Vec<Table>) -> Database {
         let mut table_defs: HashMap<i32,Table> = HashMap::new();
         let mut table_maps: HashMap<i32,TableContent> = HashMap::new();
-            for table in schemas {
-                let id_copy = table.t_id.clone();
-               table_defs.insert(table.t_id,table);
-               let new_table = TableContent::new();
-               table_maps.insert(id_copy,new_table);
-            }
-            return Database { table_defintions: table_defs, tables: table_maps}
+        for table in schemas {
+            let id_copy = table.t_id.clone();
+            table_defs.insert(table.t_id,table);
+            let new_table = TableContent::new();
+            table_maps.insert(id_copy,new_table);
+        };
+        // let thread_c = Mutex::new(0i32);
+        return Database { table_defintions: table_defs, tables: table_maps, conn_count: 0}
      }
  }
 
