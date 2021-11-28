@@ -105,7 +105,6 @@ pub fn handle_request(request: Request, db: & mut Database)
 fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>) 
     -> Result<Response, i32> 
 {
-    println!("INSERT {}", table_id);
     // Create row and insert into hashTable?
     // println!("entered insert onto tableID = {}", table_id);
     let version = 1;
@@ -219,7 +218,6 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
     version: i64, values: Vec<Value>) -> Result<Response, i32> 
 {
     
-    println!("UPDATE {},{}", table_id, object_id);
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
         // println!("found a bad table");
@@ -335,7 +333,6 @@ fn refs_flattener(db: &Database, cur_table: i32, cur_row: i64)
 fn handle_drop(db: & mut Database, table_id: i32, object_id: i64) 
     -> Result<Response, i32>
 {
-    println!("DROP {},{}", table_id, object_id);
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
         return Err(Response::BAD_TABLE);
@@ -343,7 +340,6 @@ fn handle_drop(db: & mut Database, table_id: i32, object_id: i64)
 
     //Error checking for invalid gets
     if db.tables.get(&table_id).unwrap().table_map.contains_key(&object_id) == false {
-        println!("Not Found");
         return Err(Response::NOT_FOUND);
     };
     // for tb in db.tables {
@@ -369,7 +365,6 @@ fn handle_get(db: & Database, table_id: i32, object_id: i64)
     -> Result<Response, i32>
 {
     // Create row and insert into hashTable?
-    println!("GET {},{}", table_id, object_id);
    
     //Error Checking
     // println!("tables length = {} ",db.tables.len());
@@ -393,14 +388,12 @@ fn handle_get(db: & Database, table_id: i32, object_id: i64)
     //Error checking for invalid gets
     if target_table.table_map.contains_key(&object_id) == false
     {
-        println!("Not Found");
         return Err(Response::NOT_FOUND)
     }
     //Copying and returning
     let target_row  = target_table.table_map.get(&object_id).unwrap();
     let version = target_row.version;
     let row_values = &target_row.values;
-    println!("GET {},{}", table_id, object_id);
     let resp = Ok(Response::Get(version,&row_values));
     return resp
 }
@@ -409,7 +402,6 @@ fn handle_query(db: & Database, table_id: i32, column_id: i32,
     operator: i32, other: Value) 
     -> Result<Response, i32>
 {
-    println!("SCAN {}", table_id);
     let column_index = (column_id-1) as usize;
     // check table_id is valid
     if let None = db.tables.get(&table_id) {
