@@ -20,32 +20,40 @@ pub const OP_LE: i32 = 6;
 pub const OP_GE: i32 = 7;
 
 use std::collections::HashMap;
-use schema::Table;
+use std::collections::HashSet;
+use schema::{Table, Column};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 
 
+#[derive(Debug)]
 pub struct Row {
     version: i64,
     pk: i64,
     values: Vec<Value>,
-    refers: Value
+    // contains a vector of other (table_id, row_id) that reference this row
+    refs: HashSet<(i32, i64)>
 }
 impl Row {
     fn new(version: i64, pk: i64, value: Vec<Value>) -> Row {
-        return Row { version: version, pk: pk, values: value, refers: Value::Foreign(pk)};
+        return Row { version: version, pk: pk, values: value, refs: HashSet::new() };
     }
 }
+#[derive(Debug)]
 pub struct TableContent {
-    table_map: HashMap<i64,Row>
+    table_map: HashMap<i64,Row>,
+    last_index: i64
 }
 impl TableContent {
     fn new() -> TableContent {
         let new_map: HashMap<i64,Row> = HashMap::new();
-        return TableContent { table_map: new_map }
+        return TableContent { table_map: new_map, last_index: 1i64 }
     }
 }
 /* You can implement your Database structure here
  * Q: How you will store your tables into the database? */
+#[derive(Debug)]
 pub struct Database {
     table_defintions: HashMap<i32,Table>,
     tables: HashMap<i32,TableContent>
@@ -97,6 +105,7 @@ pub fn handle_request(request: Request, db: & mut Database)
 fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>) 
     -> Result<Response, i32> 
 {
+    println!("INSERT {}", table_id);
     // Create row and insert into hashTable?
     // println!("entered insert onto tableID = {}", table_id);
     let version = 1;
@@ -174,8 +183,29 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
         }
     }
     // Getting targetTable and setting up row ID after checks passed
+    // let vadfv
+    let row_id: i64 = db.tables.get(&table_id).unwrap().last_index + 1i64;
+    db.tables.get_mut(&table_id).unwrap().last_index += 1i64;
+    {
+
+        let refs: Vec<(usize, Column)> = {
+            db.table_defintions.get(&table_id).unwrap()
+            .t_cols.iter().cloned()
+            .filter(|col| col.c_type == Value::FOREIGN)
+            .enumerate().collect()
+        };
+
+        refs.iter().for_each(|(id, col)| {
+            if let Value::Foreign(foreign_row_id) = values[*id] {
+                db.tables.get_mut(&col.c_ref).unwrap()
+                .table_map.get_mut(&foreign_row_id).unwrap()
+                .refs.insert((table_id, row_id));
+            };
+        });
+    }
+
+
     let target_table = db.tables.get_mut(&table_id).unwrap(); 
-    let row_id = target_table.table_map.len() as i64 + 1;
 
     let row_to_insert = Row::new(version,row_id,values);
     target_table.table_map.insert(row_id,row_to_insert);
@@ -188,7 +218,8 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
 fn handle_update(db: & mut Database, table_id: i32, object_id: i64, 
     version: i64, values: Vec<Value>) -> Result<Response, i32> 
 {
-    // println!("entered update");
+    
+    println!("UPDATE {},{}", table_id, object_id);
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
         // println!("found a bad table");
@@ -272,40 +303,73 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
     return resp
 }
 
+fn refs_flattener(db: &Database, cur_table: i32, cur_row: i64)
+-> Rc<RefCell<HashSet<(i32, i64)>>>
+{
+    let cur_value = (cur_table, cur_row);
+    let cur_hashset = Rc::new(RefCell::new(HashSet::new()));
+
+    if let Some(tb) = db.tables.get(&cur_table) {
+        if let Some(row) = tb.table_map.get(&cur_row) {
+            if row.refs.is_empty() {
+                (*cur_hashset.borrow_mut()).insert(cur_value);
+                return cur_hashset.clone();
+            };
+        } else { return Rc::new(RefCell::new(HashSet::new())); };
+    } else { return Rc::new(RefCell::new(HashSet::new())); };
+    
+    (*cur_hashset.borrow_mut()).extend(db.tables.get(&cur_table).unwrap()
+        .table_map.get(&cur_row).unwrap()
+        .refs.clone());
+    
+    let iters = cur_hashset.borrow().clone();
+
+    for (new_table, new_row) in iters {
+        let new_refs = refs_flattener(&db, new_table, new_row);
+        (*cur_hashset.borrow_mut()).extend((*new_refs.borrow()).clone());
+    }
+    (*cur_hashset.borrow_mut()).insert(cur_value);
+    cur_hashset.clone()
+}
+
 fn handle_drop(db: & mut Database, table_id: i32, object_id: i64) 
     -> Result<Response, i32>
 {
-    // println!("entered insert onto tableID = {}", table_id);
-    let version = 1;
-    //Error Checking
-    // println!("tables length = {} ",db.tables.len());
-    
+    println!("DROP {},{}", table_id, object_id);
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
-        // println!("found a bad table");
         return Err(Response::BAD_TABLE);
-    }
-
-    // Getting the targetTable
-    let target_table = db.tables.get(&table_id).unwrap(); 
+    };
 
     //Error checking for invalid gets
-    if target_table.table_map.contains_key(&object_id) == false
-    {
-        return Err(Response::NOT_FOUND)
-    }
+    if db.tables.get(&table_id).unwrap().table_map.contains_key(&object_id) == false {
+        println!("Not Found");
+        return Err(Response::NOT_FOUND);
+    };
+    // for tb in db.tables {
+    //     println!("{}, {:?}", tb.table_map.len(), tb.table_map);
+    // }
 
+    let ref_tree = refs_flattener(& db, table_id, object_id);
 
+    for (ref_table, ref_row) in (*ref_tree.borrow()).clone() {
+        if let Some(tb) = db.tables.get_mut(&ref_table) {
+            tb.table_map.remove(&ref_row);
+        };
+    };
+    db.tables.get_mut(&table_id).unwrap().table_map.remove(&object_id);
+    // for tb in db.tables {
+    //     println!("{}, {:?}", tb.table_map.len(), tb.table_map);
+    // }
 
-    let resp = Ok(Response::Drop);
-    return resp
+    return Ok(Response::Drop);
 }
 
 fn handle_get(db: & Database, table_id: i32, object_id: i64) 
     -> Result<Response, i32>
 {
     // Create row and insert into hashTable?
-    // println!("entered get onto tableID = {}", table_id);
+    println!("GET {},{}", table_id, object_id);
    
     //Error Checking
     // println!("tables length = {} ",db.tables.len());
@@ -329,12 +393,14 @@ fn handle_get(db: & Database, table_id: i32, object_id: i64)
     //Error checking for invalid gets
     if target_table.table_map.contains_key(&object_id) == false
     {
+        println!("Not Found");
         return Err(Response::NOT_FOUND)
     }
     //Copying and returning
     let target_row  = target_table.table_map.get(&object_id).unwrap();
     let version = target_row.version;
     let row_values = &target_row.values;
+    println!("GET {},{}", table_id, object_id);
     let resp = Ok(Response::Get(version,&row_values));
     return resp
 }
@@ -343,6 +409,7 @@ fn handle_query(db: & Database, table_id: i32, column_id: i32,
     operator: i32, other: Value) 
     -> Result<Response, i32>
 {
+    println!("SCAN {}", table_id);
     let column_index = (column_id-1) as usize;
     // check table_id is valid
     if let None = db.tables.get(&table_id) {
