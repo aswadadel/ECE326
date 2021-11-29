@@ -18,7 +18,7 @@ use schema::Table;
 use database;
 use database::Database;
 use std::thread;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 // fn single_threaded(listener: TcpListener, table_schema: Vec<Table>, verbose: bool)
 // {
@@ -49,7 +49,7 @@ use std::sync::{Arc, Mutex};
 fn multi_threaded(listener: TcpListener, table_schema: Vec<Table>, verbose: bool)
 {
     // TODO: implement me
-    let db = Arc::new(Mutex::new(Database::new(table_schema)));
+    let db = Arc::new(Database::new(table_schema));
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -95,7 +95,7 @@ pub fn run_server(table_schema: Vec<Table>, ip_address: String, verbose: bool)
 impl Network for TcpStream {}
 
 /* Receive the request packet from ORM and send a response back */
-fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Database>>) 
+fn handle_connection(mut stream: TcpStream, db: Arc<Database>) 
     -> io::Result<()> 
 {
     /* 
@@ -104,14 +104,12 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Database>>)
      *       4 simultaneous clients.
      */
     {
-        let mut db_guard = db.lock().unwrap();
-        // let count = &mut guard.conn_count;
-        // println!("{}", count);
-        if db_guard.conn_count >= 4 { 
+        let mut count = db.conn_count.lock().unwrap();
+        if *count >= 4 { 
             stream.respond(&Response::Error(Response::SERVER_BUSY))?;
             return Ok(())
         };
-        db_guard.conn_count += 1;
+        *count += 1;
     }
 
     stream.respond(&Response::Connected)?;
@@ -128,16 +126,20 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Database>>)
         
         /* we disconnect with client upon receiving Exit */
         if let Command::Exit = request.command {
-            let mut guard = db.lock().unwrap();
-            guard.conn_count -= 1;
+            {
+                // let mut guard = db.lock().unwrap();
+                // guard.conn_count -= 1;
+                let mut count = db.conn_count.lock().unwrap();
+                *count -= 1;
+            }
             break;
         }
         
         /* Send back a response */
-        let mut guard = db.lock().unwrap();
-        let response = database::handle_request(request, &mut guard);
+        // let mut guard = db.lock().unwrap();
+        let response = database::handle_request(request, db.clone());
         stream.respond(&response)?;
-        drop(guard);
+        // drop(guard);
 
         stream.flush()?;
     }

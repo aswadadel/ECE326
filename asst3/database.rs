@@ -24,7 +24,9 @@ use std::collections::HashSet;
 use schema::{Table, Column};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
+#[derive(Clone)]
 pub struct Row {
     version: i64,
     pk: i64,
@@ -50,40 +52,40 @@ impl TableContent {
 /* You can implement your Database structure here
  * Q: How you will store your tables into the database? */
 pub struct Database {
-    pub table_defintions: HashMap<i32,Table>,
-    pub tables: HashMap<i32,TableContent>,
-    pub conn_count: i32
+    table_defintions: HashMap<i32,Mutex<Table>>,
+    tables: HashMap<i32,Mutex<TableContent>>,
+    pub conn_count: Mutex<i32>
  }
  impl Database {
      pub fn new(schemas: Vec<Table>) -> Database {
-        let mut table_defs: HashMap<i32,Table> = HashMap::new();
-        let mut table_maps: HashMap<i32,TableContent> = HashMap::new();
+        let mut table_defs: HashMap<i32,Mutex<Table>> = HashMap::new();
+        let mut table_maps: HashMap<i32,Mutex<TableContent>> = HashMap::new();
         for table in schemas {
             let id_copy = table.t_id.clone();
-            table_defs.insert(table.t_id,table);
-            let new_table = TableContent::new();
+            table_defs.insert(table.t_id,Mutex::new(table));
+            let new_table = Mutex::new(TableContent::new());
             table_maps.insert(id_copy,new_table);
         };
-        // let thread_c = Mutex::new(0i32);
-        return Database { table_defintions: table_defs, tables: table_maps, conn_count: 0}
+        let thread_c = Mutex::new(0i32);
+        return Database { table_defintions: table_defs, tables: table_maps, conn_count: thread_c}
      }
  }
 
 
 /* Receive the request packet from client and send a response back */
-pub fn handle_request(request: Request, db: & mut Database) 
-    -> Response  
+pub fn handle_request<'a>(request: Request, db: Arc<Database>) 
+    -> Response<'a>
 {           
     /* Handle a valid request */
     let result = match request.command {
         Command::Insert(values) => 
-            handle_insert(db, request.table_id, values),
+            handle_insert(db.clone(), request.table_id, values),
         Command::Update(id, version, values) => 
-             handle_update(db, request.table_id, id, version, values),
-        Command::Drop(id) => handle_drop(db, request.table_id, id),
-        Command::Get(id) => handle_get(db, request.table_id, id),
+             handle_update(db.clone(), request.table_id, id, version, values),
+        Command::Drop(id) => handle_drop(db.clone(), request.table_id, id),
+        Command::Get(id) => handle_get(db.clone(), request.table_id, id),
         Command::Query(column_id, operator, value) => 
-            handle_query(db, request.table_id, column_id, operator, value),
+            handle_query(db.clone(), request.table_id, column_id, operator, value),
         /* should never get here */
         Command::Exit => Err(Response::UNIMPLEMENTED),
     };
@@ -99,8 +101,8 @@ pub fn handle_request(request: Request, db: & mut Database)
  * TODO: Implment these EasyDB functions
  */
  
-fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>) 
-    -> Result<Response, i32> 
+fn handle_insert<'a>(db: Arc<Database>, table_id: i32, values: Vec<Value>) 
+    -> Result<Response<'a>, i32> 
 {
     // Create row and insert into hashTable?
     // println!("entered insert onto tableID = {}", table_id);
@@ -114,7 +116,7 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
         return Err(Response::BAD_TABLE);
     }
 
-    let table_definition = db.table_defintions.get(&table_id).unwrap();
+    let table_definition = db.table_defintions.get(&table_id).unwrap().lock().unwrap();
     //Error Checking for bad number of entries
     if table_definition.t_cols.len() != values.len() {
         return Err(Response::BAD_ROW);
@@ -148,7 +150,7 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
                 else {
                     let lookup_table_id = table_definition.t_cols[index].c_ref;
                     if let Some(table) = db.tables.get(&lookup_table_id) {
-                        if let None = table.table_map.get(&key) {
+                        if let None = table.lock().unwrap().table_map.get(&key) {
                             return Err(Response::BAD_FOREIGN);
                         }
                     } else { 
@@ -159,12 +161,15 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
         }
     }
     // Getting targetTable and setting up row ID after checks passed
-    let row_id: i64 = db.tables.get(&table_id).unwrap().last_index;
-    db.tables.get_mut(&table_id).unwrap().last_index += 1i64;
+    let mut target_table = db.tables.get(&table_id).unwrap().lock().unwrap(); 
+
+    let row_id: i64 = target_table.last_index;
+    target_table.last_index += 1i64;
     {
 
         let refs: Vec<(usize, Column)> = {
             db.table_defintions.get(&table_id).unwrap()
+            .lock().unwrap()
             .t_cols.iter().cloned()
             .filter(|col| col.c_type == Value::FOREIGN)
             .enumerate().collect()
@@ -172,8 +177,8 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
 
         refs.iter().for_each(|(id, col)| {
             if let Value::Foreign(foreign_row_id) = values[*id] {
-                if let Some(mut deb) = db.tables.get_mut(&col.c_ref) {
-                    if let Some(mut tb) = deb.table_map.get_mut(&foreign_row_id) {
+                if let Some(deb) = db.tables.get(&col.c_ref) {
+                    if let Some(tb) = deb.lock().unwrap().table_map.get_mut(&foreign_row_id) {
                         tb.refs.insert((table_id, row_id));
                     }
                 }
@@ -182,7 +187,6 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
     }
 
 
-    let target_table = db.tables.get_mut(&table_id).unwrap(); 
 
     let row_to_insert = Row::new(version,row_id,values);
     target_table.table_map.insert(row_id,row_to_insert);
@@ -190,8 +194,8 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
     return resp
 }
 
-fn handle_update(db: & mut Database, table_id: i32, object_id: i64, 
-    version: i64, values: Vec<Value>) -> Result<Response, i32> 
+fn handle_update<'a>(db: Arc<Database>, table_id: i32, object_id: i64, 
+    version: i64, values: Vec<Value>) -> Result<Response<'a>, i32> 
 {
     
     //Error Checking on Tables
@@ -200,7 +204,7 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
         return Err(Response::BAD_TABLE);
     }
 
-    let table_definition = db.table_defintions.get(&table_id).unwrap();
+    let table_definition = db.table_defintions.get(&table_id).unwrap().lock().unwrap();
     //Error Checking for bad number of entries
     if table_definition.t_cols.len() != values.len() {
         return Err(Response::BAD_ROW);
@@ -236,7 +240,7 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
                 let lookup_table_id = table_definition.t_cols[index].c_ref;
                 if db.tables.contains_key(&lookup_table_id)
                 {
-                    let lookup_table = db.tables.get(&lookup_table_id).unwrap();
+                    let lookup_table = db.tables.get(&lookup_table_id).unwrap().lock().unwrap();
                     let lookup_table_id_64 = lookup_table_id.clone() as i64;
                     if lookup_table.table_map.contains_key(&key) == false
                     {
@@ -253,7 +257,7 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
         }
     }
     // Getting the targetTable
-    let target_table = db.tables.get_mut(&table_id).unwrap(); 
+    let mut target_table = db.tables.get(&table_id).unwrap().lock().unwrap(); 
 
     //Error checking for invalid gets
     if target_table.table_map.contains_key(&object_id) == false
@@ -277,14 +281,14 @@ fn handle_update(db: & mut Database, table_id: i32, object_id: i64,
     return resp
 }
 
-fn refs_flattener(db: &Database, cur_table: i32, cur_row: i64)
+fn refs_flattener(db: Arc<Database>, cur_table: i32, cur_row: i64)
 -> Rc<RefCell<HashSet<(i32, i64)>>>
 {
     let cur_value = (cur_table, cur_row);
     let cur_hashset = Rc::new(RefCell::new(HashSet::new()));
 
     if let Some(tb) = db.tables.get(&cur_table) {
-        if let Some(row) = tb.table_map.get(&cur_row) {
+        if let Some(row) = tb.lock().unwrap().table_map.get(&cur_row) {
             if row.refs.is_empty() {
                 (*cur_hashset.borrow_mut()).insert(cur_value);
                 return cur_hashset.clone();
@@ -292,22 +296,23 @@ fn refs_flattener(db: &Database, cur_table: i32, cur_row: i64)
         } else { return Rc::new(RefCell::new(HashSet::new())); };
     } else { return Rc::new(RefCell::new(HashSet::new())); };
     
-    (*cur_hashset.borrow_mut()).extend(db.tables.get(&cur_table).unwrap()
+    (*cur_hashset.borrow_mut()).extend(db.tables.get(&cur_table).unwrap().lock().unwrap()
         .table_map.get(&cur_row).unwrap()
-        .refs.clone());
+        .refs.clone()
+    );
     
     let iters = cur_hashset.borrow().clone();
 
     for (new_table, new_row) in iters {
-        let new_refs = refs_flattener(&db, new_table, new_row);
+        let new_refs = refs_flattener(db.clone(), new_table, new_row);
         (*cur_hashset.borrow_mut()).extend((*new_refs.borrow()).clone());
     }
     (*cur_hashset.borrow_mut()).insert(cur_value);
     cur_hashset.clone()
 }
 
-fn handle_drop(db: & mut Database, table_id: i32, object_id: i64) 
-    -> Result<Response, i32>
+fn handle_drop<'a>(db: Arc<Database>, table_id: i32, object_id: i64) 
+    -> Result<Response<'a>, i32>
 {
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
@@ -315,21 +320,21 @@ fn handle_drop(db: & mut Database, table_id: i32, object_id: i64)
     };
 
     //Error checking for invalid gets
-    if db.tables.get(&table_id).unwrap().table_map.contains_key(&object_id) == false {
+    if db.tables.get(&table_id).unwrap().lock().unwrap().table_map.contains_key(&object_id) == false {
         return Err(Response::NOT_FOUND);
     };
     // for tb in db.tables {
     //     println!("{}, {:?}", tb.table_map.len(), tb.table_map);
     // }
 
-    let ref_tree = refs_flattener(& db, table_id, object_id);
+    let ref_tree = refs_flattener(db.clone(), table_id, object_id);
 
     for (ref_table, ref_row) in (*ref_tree.borrow()).clone() {
-        if let Some(tb) = db.tables.get_mut(&ref_table) {
-            tb.table_map.remove(&ref_row);
+        if let Some(tb) = db.tables.get(&ref_table) {
+            tb.lock().unwrap().table_map.remove(&ref_row);
         };
     };
-    db.tables.get_mut(&table_id).unwrap().table_map.remove(&object_id);
+    db.tables.get(&table_id).unwrap().lock().unwrap().table_map.remove(&object_id);
     // for tb in db.tables {
     //     println!("{}, {:?}", tb.table_map.len(), tb.table_map);
     // }
@@ -337,8 +342,8 @@ fn handle_drop(db: & mut Database, table_id: i32, object_id: i64)
     return Ok(Response::Drop);
 }
 
-fn handle_get(db: & Database, table_id: i32, object_id: i64) 
-    -> Result<Response, i32>
+fn handle_get<'a>(db: Arc<Database>, table_id: i32, object_id: i64) 
+    -> Result<Response<'static>, i32>
 {
     // Create row and insert into hashTable?
    
@@ -359,7 +364,7 @@ fn handle_get(db: & Database, table_id: i32, object_id: i64)
     //    }
 
     // Getting the targetTable
-    let target_table = db.tables.get(&table_id).unwrap(); 
+    let target_table = db.tables.get(&table_id).unwrap().lock().unwrap(); 
 
     //Error checking for invalid gets
     if target_table.table_map.contains_key(&object_id) == false
@@ -369,14 +374,14 @@ fn handle_get(db: & Database, table_id: i32, object_id: i64)
     //Copying and returning
     let target_row  = target_table.table_map.get(&object_id).unwrap();
     let version = target_row.version;
-    let row_values = &target_row.values;
-    let resp = Ok(Response::Get(version,&row_values));
-    return resp
+    let row_values: &'static Vec<Value> = &target_row.values.clone();
+    return Ok(Response::Get(version,row_values));
+    // return resp
 }
 
-fn handle_query(db: & Database, table_id: i32, column_id: i32,
+fn handle_query<'a>(db: Arc<Database>, table_id: i32, column_id: i32,
     operator: i32, other: Value) 
-    -> Result<Response, i32>
+    -> Result<Response<'a>, i32>
 {
     let column_index = (column_id-1) as usize;
     // check table_id is valid
@@ -384,15 +389,16 @@ fn handle_query(db: & Database, table_id: i32, column_id: i32,
         return Err(Response::BAD_TABLE);
     };
     //check column_id valid
-    if let None = db.table_defintions.get(&table_id).unwrap().
-    t_cols.get(column_index) {
+    if let None = db.table_defintions.get(&table_id).unwrap().lock().unwrap()
+    .t_cols.get(column_index) {
         if column_id != 0 { 
             return Err(Response::BAD_QUERY)
         } 
     };
     // check column-type mismatch
     let col_type = if column_id != 0 
-    { db.table_defintions.get(&table_id).unwrap().t_cols.get(column_index).unwrap().c_type }
+    { db.table_defintions.get(&table_id).unwrap().lock().unwrap()
+        .t_cols.get(column_index).unwrap().c_type }
     else { Value::FOREIGN };
 
     if !(match other {
@@ -404,7 +410,7 @@ fn handle_query(db: & Database, table_id: i32, column_id: i32,
     }) { return Err(Response::BAD_QUERY)};
 
     // burrow rows
-    let rows = &db.tables.get(&table_id).unwrap().table_map;
+    let rows = &db.tables.get(&table_id).unwrap().lock().unwrap().table_map;
 
     // do the scanning
     let results_ids: Vec<i64> = match operator {
