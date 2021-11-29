@@ -50,8 +50,8 @@ impl TableContent {
 /* You can implement your Database structure here
  * Q: How you will store your tables into the database? */
 pub struct Database {
-    table_defintions: HashMap<i32,Table>,
-    tables: HashMap<i32,TableContent>,
+    pub table_defintions: HashMap<i32,Table>,
+    pub tables: HashMap<i32,TableContent>,
     pub conn_count: i32
  }
  impl Database {
@@ -141,46 +141,25 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
                 // println!("found an invalid Text");
                 return Err(Response::BAD_VALUE);
             },
-            Value::Foreign(key) => if required_type != Value::FOREIGN { // look up the foreign
-                // println!("Found an invalid Foreign");
-                return Err(Response::BAD_VALUE);
-            }
-            else
-            {
-                //Immigration
-                // println!("Entered Immigration");
-                /*
-                 * This is a lot like when I cross the border and 
-                 * the US customs officer asking me what the address of the hotel im staying in 
-                 * even though no one in the 21st century knows any addresses other than their
-                 * own or their parents house. Like dude I'm just trying to go to get cheap liquor.
-                 * And even then, as if the guy even knows where I'm going, the dude is just gonna
-                 * google maps it anyway just like me except he's legally allowed to be a pain the ass.
-                 */
-                let lookup_table_id = table_definition.t_cols[index].c_ref;
-
-                if db.tables.contains_key(&lookup_table_id)
-                {
-                    let lookup_table = db.tables.get(&lookup_table_id).unwrap();
-                    let lookup_table_id_64 = lookup_table_id.clone() as i64;
-                    if lookup_table.table_map.contains_key(&key) == false
-                    {
-                        // println!("Got the impostor");
+            Value::Foreign(key) => {
+                if required_type != Value::FOREIGN { // look up the foreign
+                    return Err(Response::BAD_VALUE);
+                }
+                else {
+                    let lookup_table_id = table_definition.t_cols[index].c_ref;
+                    if let Some(table) = db.tables.get(&lookup_table_id) {
+                        if let None = table.table_map.get(&key) {
+                            return Err(Response::BAD_FOREIGN);
+                        }
+                    } else { 
                         return Err(Response::BAD_FOREIGN);
                     }
                 }
-                else
-                {
-                    // println!("Got the impostor table");
-                    return Err(Response::BAD_FOREIGN);
-                }
             }
-
         }
     }
     // Getting targetTable and setting up row ID after checks passed
-    // let vadfv
-    let row_id: i64 = db.tables.get(&table_id).unwrap().last_index + 1i64;
+    let row_id: i64 = db.tables.get(&table_id).unwrap().last_index;
     db.tables.get_mut(&table_id).unwrap().last_index += 1i64;
     {
 
@@ -193,9 +172,11 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
 
         refs.iter().for_each(|(id, col)| {
             if let Value::Foreign(foreign_row_id) = values[*id] {
-                db.tables.get_mut(&col.c_ref).unwrap()
-                .table_map.get_mut(&foreign_row_id).unwrap()
-                .refs.insert((table_id, row_id));
+                if let Some(mut deb) = db.tables.get_mut(&col.c_ref) {
+                    if let Some(mut tb) = deb.table_map.get_mut(&foreign_row_id) {
+                        tb.refs.insert((table_id, row_id));
+                    }
+                }
             };
         });
     }
@@ -205,9 +186,7 @@ fn handle_insert(db: & mut Database, table_id: i32, values: Vec<Value>)
 
     let row_to_insert = Row::new(version,row_id,values);
     target_table.table_map.insert(row_id,row_to_insert);
-    // println!("inserted rowID  = {} into table {}",row_id,table_id);
     let resp = Ok(Response::Insert(row_id,version));
-    // println!("exiting insert");
     return resp
 }
 

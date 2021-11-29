@@ -104,11 +104,14 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Database>>)
      *       4 simultaneous clients.
      */
     {
-        let mut guard = db.lock().unwrap();
-        let count = &mut guard.conn_count;
+        let mut db_guard = db.lock().unwrap();
+        // let count = &mut guard.conn_count;
         // println!("{}", count);
-        if *count >= 4 { stream.respond(&Response::Error(Response::SERVER_BUSY))?; return Ok(()) };
-        *count += 1;
+        if db_guard.conn_count >= 4 { 
+            stream.respond(&Response::Error(Response::SERVER_BUSY))?;
+            return Ok(())
+        };
+        db_guard.conn_count += 1;
     }
 
     stream.respond(&Response::Connected)?;
@@ -125,10 +128,8 @@ fn handle_connection(mut stream: TcpStream, db: Arc<Mutex<Database>>)
         
         /* we disconnect with client upon receiving Exit */
         if let Command::Exit = request.command {
-            {
-                let mut guard = db.lock().unwrap();
-                guard.conn_count -= 1;
-            }
+            let mut guard = db.lock().unwrap();
+            guard.conn_count -= 1;
             break;
         }
         
