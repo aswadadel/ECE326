@@ -73,8 +73,8 @@ pub struct Database {
 
 
 /* Receive the request packet from client and send a response back */
-pub fn handle_request<'a>(request: Request, db: Arc<Database>) 
-    -> Response<'a>
+pub fn handle_request(request: Request, db: Arc<Database>) 
+    -> Response
 {           
     /* Handle a valid request */
     let result = match request.command {
@@ -101,18 +101,15 @@ pub fn handle_request<'a>(request: Request, db: Arc<Database>)
  * TODO: Implment these EasyDB functions
  */
  
-fn handle_insert<'a>(db: Arc<Database>, table_id: i32, values: Vec<Value>) 
-    -> Result<Response<'a>, i32> 
+fn handle_insert(db: Arc<Database>, table_id: i32, values: Vec<Value>) 
+    -> Result<Response, i32> 
 {
     // Create row and insert into hashTable?
-    // println!("entered insert onto tableID = {}", table_id);
     let version = 1;
     //Error Checking
-    // println!("tables length = {} ",db.tables.len());
     
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
-        // println!("found a bad table");
         return Err(Response::BAD_TABLE);
     }
 
@@ -124,23 +121,17 @@ fn handle_insert<'a>(db: Arc<Database>, table_id: i32, values: Vec<Value>)
     //Error Checking on row contents (values)
     for index in 0..values.len() {
         let required_type = table_definition.t_cols[index].c_type.clone();
-        // println!("required type be like {}",required_type);
-        //println!("actual type be like {}",&values[index]);
         match &values[index] {
             Value::Null => if required_type != Value::NULL {
-                // println!("found an invalid Null");
                 return Err(Response::BAD_VALUE);
             },
             Value::Integer(num) => if required_type != Value::INTEGER {
-                // println!("found an invalid Integer");
                 return Err(Response::BAD_VALUE);
             },
             Value::Float(num) => if required_type != Value::FLOAT {
-                // println!("found an invalid Float");
                 return Err(Response::BAD_VALUE);
             },
             Value::Text(text) => if required_type != Value::STRING {
-                // println!("found an invalid Text");
                 return Err(Response::BAD_VALUE);
             },
             Value::Foreign(key) => {
@@ -166,11 +157,8 @@ fn handle_insert<'a>(db: Arc<Database>, table_id: i32, values: Vec<Value>)
     let row_id: i64 = target_table.last_index;
     target_table.last_index += 1i64;
     {
-
         let refs: Vec<(usize, Column)> = {
-            db.table_defintions.get(&table_id).unwrap()
-            .lock().unwrap()
-            .t_cols.iter().cloned()
+            table_definition.t_cols.iter().cloned()
             .filter(|col| col.c_type == Value::FOREIGN)
             .enumerate().collect()
         };
@@ -186,21 +174,18 @@ fn handle_insert<'a>(db: Arc<Database>, table_id: i32, values: Vec<Value>)
         });
     }
 
-
-
     let row_to_insert = Row::new(version,row_id,values);
     target_table.table_map.insert(row_id,row_to_insert);
     let resp = Ok(Response::Insert(row_id,version));
     return resp
 }
 
-fn handle_update<'a>(db: Arc<Database>, table_id: i32, object_id: i64, 
-    version: i64, values: Vec<Value>) -> Result<Response<'a>, i32> 
+fn handle_update(db: Arc<Database>, table_id: i32, object_id: i64, 
+    version: i64, values: Vec<Value>) -> Result<Response, i32> 
 {
     
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
-        // println!("found a bad table");
         return Err(Response::BAD_TABLE);
     }
 
@@ -212,27 +197,20 @@ fn handle_update<'a>(db: Arc<Database>, table_id: i32, object_id: i64,
     //Error Checking on row contents (values)
     for index in 0..values.len() {
         let required_type = table_definition.t_cols[index].c_type.clone();
-        // println!("required type be like {}",required_type);
-        //println!("actual type be like {}",&values[index]);
         match &values[index] {
             Value::Null => if required_type != Value::NULL {
-                // println!("found an invalid Null");
                 return Err(Response::BAD_VALUE);
             },
             Value::Integer(num) => if required_type != Value::INTEGER {
-                // println!("found an invalid Integer");
                 return Err(Response::BAD_VALUE);
             },
             Value::Float(num) => if required_type != Value::FLOAT {
-                // println!("found an invalid Float");
                 return Err(Response::BAD_VALUE);
             },
             Value::Text(text) => if required_type != Value::STRING {
-                // println!("found an invalid Text");
                 return Err(Response::BAD_VALUE);
             },
             Value::Foreign(key) => if required_type != Value::FOREIGN { // look up the foreign
-                // println!("Found an invalid Foreign");
                 return Err(Response::BAD_VALUE);
             }
             else
@@ -244,13 +222,11 @@ fn handle_update<'a>(db: Arc<Database>, table_id: i32, object_id: i64,
                     let lookup_table_id_64 = lookup_table_id.clone() as i64;
                     if lookup_table.table_map.contains_key(&key) == false
                     {
-                        // println!("Got the impostor");
                         return Err(Response::BAD_FOREIGN);    
                     }
                 }
                 else
                 {
-                    // println!("Got the impostor table");
                     return Err(Response::BAD_FOREIGN);
                 }
             }
@@ -275,9 +251,7 @@ fn handle_update<'a>(db: Arc<Database>, table_id: i32, object_id: i64,
     row_version = row_version + 1;
     let row_to_insert = Row::new(row_version,object_id,values);
     target_table.table_map.insert(object_id,row_to_insert);
-    //println!("inserted rowID  = {} into table {}",object_id,table_id);
     let resp = Ok(Response::Update(row_version));
-    //println!("exiting update");
     return resp
 }
 
@@ -311,8 +285,8 @@ fn refs_flattener(db: Arc<Database>, cur_table: i32, cur_row: i64)
     cur_hashset.clone()
 }
 
-fn handle_drop<'a>(db: Arc<Database>, table_id: i32, object_id: i64) 
-    -> Result<Response<'a>, i32>
+fn handle_drop(db: Arc<Database>, table_id: i32, object_id: i64) 
+    -> Result<Response, i32>
 {
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
@@ -323,9 +297,6 @@ fn handle_drop<'a>(db: Arc<Database>, table_id: i32, object_id: i64)
     if db.tables.get(&table_id).unwrap().lock().unwrap().table_map.contains_key(&object_id) == false {
         return Err(Response::NOT_FOUND);
     };
-    // for tb in db.tables {
-    //     println!("{}, {:?}", tb.table_map.len(), tb.table_map);
-    // }
 
     let ref_tree = refs_flattener(db.clone(), table_id, object_id);
 
@@ -335,24 +306,19 @@ fn handle_drop<'a>(db: Arc<Database>, table_id: i32, object_id: i64)
         };
     };
     db.tables.get(&table_id).unwrap().lock().unwrap().table_map.remove(&object_id);
-    // for tb in db.tables {
-    //     println!("{}, {:?}", tb.table_map.len(), tb.table_map);
-    // }
 
     return Ok(Response::Drop);
 }
 
-fn handle_get<'a>(db: Arc<Database>, table_id: i32, object_id: i64) 
-    -> Result<Response<'static>, i32>
+fn handle_get(db: Arc<Database>, table_id: i32, object_id: i64) 
+    -> Result<Response, i32>
 {
     // Create row and insert into hashTable?
    
     //Error Checking
-    // println!("tables length = {} ",db.tables.len());
    
     //Error Checking on Tables
     if table_id < 1 || table_id > db.tables.len() as i32 {
-        // println!("found a bad table");
         return Err(Response::BAD_TABLE);
     }
 
@@ -374,14 +340,14 @@ fn handle_get<'a>(db: Arc<Database>, table_id: i32, object_id: i64)
     //Copying and returning
     let target_row  = target_table.table_map.get(&object_id).unwrap();
     let version = target_row.version;
-    let row_values: &'static Vec<Value> = &target_row.values.clone();
+    let row_values = target_row.values.clone();
     return Ok(Response::Get(version,row_values));
     // return resp
 }
 
-fn handle_query<'a>(db: Arc<Database>, table_id: i32, column_id: i32,
+fn handle_query(db: Arc<Database>, table_id: i32, column_id: i32,
     operator: i32, other: Value) 
-    -> Result<Response<'a>, i32>
+    -> Result<Response, i32>
 {
     let column_index = (column_id-1) as usize;
     // check table_id is valid
