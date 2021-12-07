@@ -101,6 +101,33 @@ template <> struct Protocol<e> { \
 PRIMITIVE_TYPES
 #undef X
 
+template <> struct Protocol<std::string> {
+  static bool Encode(uint8_t *out_bytes, uint32_t *out_len, const std::string &x) {
+    if (*out_len < x.length() + 1) return false; 
+    for(int i=0; i<x.length(); i++){
+      memcpy(&out_bytes[i],&x[i], 1);
+    }
+    out_bytes[x.length()] = (uint8_t)'\0';
+    *out_len = x.length() + 1;
+    return true;
+  }
+  static bool Decode(uint8_t *in_bytes, uint32_t *in_len, std::string &x) {
+    std::cout << *in_len << std::endl;
+    int term_index = -1;
+    for(int i=0; i<*in_len; i++){
+      if((char)in_bytes[i] == '\0') {
+        term_index = i;
+        break;
+      }
+    }
+    if(term_index == -1) return false;
+    std::cout << "pass" << std::endl;
+    x = std::string((char *)in_bytes);
+    *in_len = x.length()+1;
+    return true;
+  }
+};
+
 // TASK2: Client-side
 class IntParam : public BaseParams {
   int p;
