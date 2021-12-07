@@ -38,33 +38,35 @@ template <typename T> struct Protocol {
 };
 
 // ---------- old code from lab ------------
-// template <> struct Protocol<int> {
-//   static bool Encode(uint8_t *out_bytes, uint32_t *out_len, const int &x) {
-// 	// check if buffer is big enough to fit the data, if not, return false
-//     if (*out_len < sizeof(int)) return false; 
+/*
+template <> struct Protocol<int> {
+  static bool Encode(uint8_t *out_bytes, uint32_t *out_len, const int &x) {
+	// check if buffer is big enough to fit the data, if not, return false
+    if (*out_len < sizeof(int)) return false; 
 	
-// 	// do a memory copy of the data into the buffer, TYPE_SIZE is the size of the data
-//     memcpy(out_bytes, &x, sizeof(int));
+	// do a memory copy of the data into the buffer, TYPE_SIZE is the size of the data
+    memcpy(out_bytes, &x, sizeof(int));
 	
-// 	// since we wrote TYPE_SIZE number of bytes to the buffer, we set *out_len to TYPE_SIZE
-//     *out_len = sizeof(int);
+	// since we wrote TYPE_SIZE number of bytes to the buffer, we set *out_len to TYPE_SIZE
+    *out_len = sizeof(int);
 
-//     return true;
-//   }
+    return true;
+  }
   
-//   static bool Decode(uint8_t *in_bytes, uint32_t *in_len, int &x) {
-// 	// check if buffer is big enough to read in x, if not, return false
-//     if (*in_len < sizeof(int)) return false;
+  static bool Decode(uint8_t *in_bytes, uint32_t *in_len, int &x) {
+	// check if buffer is big enough to read in x, if not, return false
+    if (*in_len < sizeof(int)) return false;
 	
-// 	// do a memory copy from the buffer into the data, TYPE_SIZE is the size of the data
-//     memcpy(&x, in_bytes, sizeof(int));
+	// do a memory copy from the buffer into the data, TYPE_SIZE is the size of the data
+    memcpy(&x, in_bytes, sizeof(int));
 	
-// 	// since we consumed TYPE_SIZE number of bytes from the buffer, we set *in_len to TYPE_SIZE
-//     *in_len = sizeof(int);
+	// since we consumed TYPE_SIZE number of bytes from the buffer, we set *in_len to TYPE_SIZE
+    *in_len = sizeof(int);
 	
-//     return true;
-//   }
-// };
+    return true;
+  }
+};
+*/
 
 #define PRIMITIVE_TYPES \
 X(int) \
@@ -101,14 +103,31 @@ template <> struct Protocol<e> { \
 PRIMITIVE_TYPES
 #undef X
 
+template <typename T>
+unsigned int encodeSize(const T &x) {
+  return sizeof(T);
+}
+template <>
+unsigned int encodeSize(const std::string &x) {
+  return x.size() + 1;
+}
+template <typename T>
+unsigned int encodeSize(const std::vector<T> &x) {
+  unsigned int size = 2;
+  for(const auto& iter: x) {
+    size += encodeSize(iter);
+  }
+  return size;
+}
+
 template <> struct Protocol<std::string> {
   static bool Encode(uint8_t *out_bytes, uint32_t *out_len, const std::string &x) {
-    if (*out_len < x.length() + 1) return false; 
+    if (*out_len < encodeSize(x)) return false; 
     for(int i=0; i<x.length(); i++){
       memcpy(&out_bytes[i],&x[i], 1);
     }
     out_bytes[x.length()] = (uint8_t)'\0';
-    *out_len = x.length() + 1;
+    *out_len = encodeSize(x);
     return true;
   }
   static bool Decode(uint8_t *in_bytes, uint32_t *in_len, std::string &x) {
@@ -121,9 +140,48 @@ template <> struct Protocol<std::string> {
     }
     if(term_index == -1) return false;
     x = std::string((char *)in_bytes);
-    *in_len = x.length()+1;
+    *in_len = encodeSize(x);
     return true;
   }
+};
+
+template <typename T> struct Protocol<std::vector<T>> {
+  static bool Encode(uint8_t *out_bytes, uint32_t *out_len, const std::vector<T> &x) {
+    if(*out_len < encodeSize(x)) return false;
+
+    unsigned short vec_length = x.size();
+    memcpy(out_bytes, &vec_length, sizeof(unsigned short));
+    uint32_t remaining_len = *out_len - sizeof(unsigned short);
+    
+    for(const auto& iter : x) {
+      unsigned int buffer_index = *out_len - remaining_len;
+      uint32_t temp_len = remaining_len;
+      Protocol<T>::Encode(out_bytes+buffer_index, &temp_len, iter);
+      remaining_len -= temp_len;
+    }
+    *out_len = *out_len - remaining_len;
+    return true;
+  }
+  static bool Decode(uint8_t *in_bytes, uint32_t *in_len, std::vector<T> &x) {
+    if(*in_len < 2) return false;
+    std::vector<T> res_vec;
+    unsigned short vec_length;
+    memcpy(&vec_length, in_bytes, sizeof(unsigned short));
+    uint32_t remaining_len = *in_len - sizeof(unsigned short);
+    for(int i = 0; i < vec_length; i++) {
+      if(remaining_len <= 0) return false;
+      unsigned int buffer_index = *in_len - remaining_len;
+      uint32_t temp_len = remaining_len;
+      T temp_value;
+      if(!Protocol<T>::Decode(in_bytes+buffer_index, &temp_len, temp_value)) return false;
+      res_vec.push_back(temp_value);
+      remaining_len -= temp_len;
+    }
+    *in_len = *in_len - remaining_len;
+    x.swap(res_vec);
+    return true;
+  }
+  
 };
 
 // TASK2: Client-side
