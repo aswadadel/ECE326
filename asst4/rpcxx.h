@@ -112,7 +112,6 @@ template <> struct Protocol<std::string> {
     return true;
   }
   static bool Decode(uint8_t *in_bytes, uint32_t *in_len, std::string &x) {
-    std::cout << *in_len << std::endl;
     int term_index = -1;
     for(int i=0; i<*in_len; i++){
       if((char)in_bytes[i] == '\0') {
@@ -121,7 +120,6 @@ template <> struct Protocol<std::string> {
       }
     }
     if(term_index == -1) return false;
-    std::cout << "pass" << std::endl;
     x = std::string((char *)in_bytes);
     *in_len = x.length()+1;
     return true;
