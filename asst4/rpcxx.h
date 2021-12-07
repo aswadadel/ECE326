@@ -37,33 +37,40 @@ template <typename T> struct Protocol {
   }
 };
 
-template <> struct Protocol<int> {
-  static bool Encode(uint8_t *out_bytes, uint32_t *out_len, const int &x) {
-	// check if buffer is big enough to fit the data, if not, return false
-    if (*out_len < sizeof(int)) return false; 
-	
-	// do a memory copy of the data into the buffer, TYPE_SIZE is the size of the data
-    memcpy(out_bytes, &x, sizeof(int));
-	
-	// since we wrote TYPE_SIZE number of bytes to the buffer, we set *out_len to TYPE_SIZE
-    *out_len = sizeof(int);
+#define PRIMITIVE_TYPES \
+X(int) \
+X(char) \
+X(short) \
+X(long) \
+X(long long) \
+X(unsigned int) \
+X(unsigned char) \
+X(unsigned short) \
+X(unsigned long) \
+X(unsigned long long) \
+X(bool) \
+X(float) \
+X(double)
 
-    return true;
-  }
-  
-  static bool Decode(uint8_t *in_bytes, uint32_t *in_len, int &x) {
-	// check if buffer is big enough to read in x, if not, return false
-    if (*in_len < sizeof(int)) return false;
-	
-	// do a memory copy from the buffer into the data, TYPE_SIZE is the size of the data
-    memcpy(&x, in_bytes, sizeof(int));
-	
-	// since we consumed TYPE_SIZE number of bytes from the buffer, we set *in_len to TYPE_SIZE
-    *in_len = sizeof(int);
-	
-    return true;
-  }
+
+#define X(e) \
+template <> struct Protocol<e> { \
+  static bool Encode(uint8_t *out_bytes, uint32_t *out_len, const e &x) { \
+    if (*out_len < sizeof(e)) return false;  \
+    memcpy(out_bytes, &x, sizeof(e)); \
+    *out_len = sizeof(e); \
+    return true; \
+  } \
+  static bool Decode(uint8_t *in_bytes, uint32_t *in_len, e &x) { \
+    if (*in_len < sizeof(e)) return false; \
+    memcpy(&x, in_bytes, sizeof(e)); \
+    *in_len = sizeof(e); \
+    return true; \
+  } \
 };
+
+PRIMITIVE_TYPES
+#undef X
 
 // TASK2: Client-side
 class IntParam : public BaseParams {
