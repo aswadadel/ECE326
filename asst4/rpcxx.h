@@ -291,11 +291,6 @@ class Service : public BaseService {
   void Export(T (Svc::*func)()) {
     ExportRaw(MemberFunctionPtr::From(func), new Procedure<Svc, T>());
   }
-
-  // void Export(int (Svc::*func)(int)) {
-  //   ExportRaw(MemberFunctionPtr::From(func), new IntIntProcedure<Svc>());
-  // }
-  
 };
 
 }
