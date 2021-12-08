@@ -185,18 +185,22 @@ template <typename T> struct Protocol<std::vector<T>> {
 };
 
 // TASK2: Client-side
-// class IntParam : public BaseParams {
-//   int p;
-//  public:
-//   IntParam(int p) : p(p) {}
-
-//   bool Encode(uint8_t *out_bytes, uint32_t *out_len) const override {
-//     return Protocol<int>::Encode(out_bytes, out_len, p);
-//   }
-// };
-class NoParam : public BaseParams {
+// CASE 1: handle single T-type param
+template <typename T>
+class Param : public BaseParams {
+  T p;
  public:
-  NoParam() {}
+  Param(T p) : p(p) {}
+
+  bool Encode(uint8_t *out_bytes, uint32_t *out_len) const override {
+    return Protocol<T>::Encode(out_bytes, out_len, p);
+  }
+};
+// CASE 2: handle no (void) param
+template <>
+class Param<void> : public BaseParams {
+ public:
+  Param() {}
 
   bool Encode(uint8_t *out_bytes, uint32_t *out_len) const override {
     return true;
@@ -204,17 +208,39 @@ class NoParam : public BaseParams {
 };
 
 // TASK2: Server-side
-template <typename Svc, typename ReturnT>
+// TODO: implement Procedure<Svc, void, ParamT>. CASE: void func(ParamT)
+// CASE 1: ReturnT func(ParamT u)
+template <typename Svc, typename ReturnT, typename ParamT>
 class Procedure : public BaseProcedure {
   bool DecodeAndExecute(uint8_t *in_bytes, uint32_t *in_len,
                         uint8_t *out_bytes, uint32_t *out_len) override final {
     // -------- x is a param --------
-    // int x;
+    ParamT x;
     // This function is similar to Decode. We need to return false if buffer
     // isn't large enough, or fatal error happens during parsing.
-    /* if (!Protocol<ReturnT>::Decode(in_bytes, in_len, x)) {
+    if (!Protocol<ParamT>::Decode(in_bytes, in_len, x)) {
        return false;
-    } */
+    }
+    // Now we cast the function pointer func_ptr to its original type.
+    //
+    // This incomplete solution only works for this type of member functions.
+    using FunctionPointerType = ReturnT (Svc::*)(ParamT);
+    auto p = func_ptr.To<FunctionPointerType>();
+    ReturnT result = (((Svc *) instance)->*p)(x);
+    if (!Protocol<ReturnT>::Encode(out_bytes, out_len, result)) {
+      // out_len should always be large enough so this branch shouldn't be
+      // taken. However just in case, we return a fatal error here.
+      return false;
+    }
+    return true;
+  }
+};
+// CASE 2: ReturnT func(void)
+template <typename Svc, typename ReturnT>
+class Procedure<Svc, ReturnT, void> : public BaseProcedure {
+  bool DecodeAndExecute(uint8_t *in_bytes, uint32_t *in_len,
+                        uint8_t *out_bytes, uint32_t *out_len) override final {
+
     // Now we cast the function pointer func_ptr to its original type.
     //
     // This incomplete solution only works for this type of member functions.
@@ -229,8 +255,9 @@ class Procedure : public BaseProcedure {
     return true;
   }
 };
+// CASE 3: void func(void)
 template <typename Svc>
-class Procedure<Svc, void> : public BaseProcedure {
+class Procedure<Svc, void, void> : public BaseProcedure {
   bool DecodeAndExecute(uint8_t *in_bytes, uint32_t *in_len,
                         uint8_t *out_bytes, uint32_t *out_len) override final {
     using FunctionPointerType = void (Svc::*)();
@@ -241,6 +268,7 @@ class Procedure<Svc, void> : public BaseProcedure {
 };
 
 // TASK2: Client-side
+// CASE 1: Handle any (except void) return type
 template <typename ReturnT>
 class Result : public BaseResult {
   ReturnT r;
@@ -250,6 +278,7 @@ class Result : public BaseResult {
   }
   ReturnT &data() { return r; }
 };
+// CASE 2: handle void return type
 template <>
 class Result<void> : public BaseResult {
  public:
@@ -262,6 +291,24 @@ class Result<void> : public BaseResult {
 // TASK2: Client-side
 class Client : public BaseClient {
  public:
+//  CASE 1: ReturnT func(ParamT)
+  template <typename Svc, typename ReturnT, typename ParamT>
+  Result<ReturnT> *Call(Svc *svc, ReturnT (Svc::*func)(ParamT), ParamT x) {
+    // Lookup instance and function IDs.
+    int instance_id = svc->instance_id();
+    int func_id = svc->LookupExportFunction(MemberFunctionPtr::From(func));
+
+    auto result = new Result<ReturnT>();
+
+    // ---------  handle params here ---------
+    if (!Send(instance_id, func_id, new Param<ParamT>(x), result)) {
+      // Fail to send, then delete the result and return nullptr.
+      delete result;
+      return nullptr;
+    }
+    return result;
+  }
+//  CASE 2: ReturnT func()
   template <typename Svc, typename ReturnT>
   Result<ReturnT> *Call(Svc *svc, ReturnT (Svc::*func)()) {
     // Lookup instance and function IDs.
@@ -270,11 +317,7 @@ class Client : public BaseClient {
 
     auto result = new Result<ReturnT>();
 
-    // We also send the paramters of the functions. For this incomplete
-    // solution, it must be one integer.
-    // if (!Send(instance_id, func_id, new IntParam(x), result)) {
-
-    if (!Send(instance_id, func_id, new NoParam(), result)) {
+    if (!Send(instance_id, func_id, new Param<void>(), result)) {
       // Fail to send, then delete the result and return nullptr.
       delete result;
       return nullptr;
@@ -287,9 +330,13 @@ class Client : public BaseClient {
 template <typename Svc>
 class Service : public BaseService {
  protected:
-  template <typename T>
-  void Export(T (Svc::*func)()) {
-    ExportRaw(MemberFunctionPtr::From(func), new Procedure<Svc, T>());
+  template <typename ReturnT>
+  void Export(ReturnT (Svc::*func)()) {
+    ExportRaw(MemberFunctionPtr::From(func), new Procedure<Svc, ReturnT, void>());
+  }
+  template <typename ReturnT, typename ParamT>
+  void Export(ReturnT (Svc::*func)(ParamT)) {
+    ExportRaw(MemberFunctionPtr::From(func), new Procedure<Svc, ReturnT, ParamT>());
   }
 };
 
