@@ -220,7 +220,6 @@ public:
     uint32_t rem_out_len = *out_len;
     bool b = this->Encode_recursive(out_bytes, &rem_out_len);
     *out_len -= rem_out_len;
-    if(!b) 
     return b;
   }
 };
