@@ -4,6 +4,8 @@
 
 #include <cstdlib>
 #include "rpc.h"
+#include <iostream>
+#include <cxxabi.h>
 
 namespace rpc {
 
@@ -123,7 +125,7 @@ unsigned int encodeSize(const std::vector<T> &x) {
 template <> struct Protocol<std::string> {
   static bool Encode(uint8_t *out_bytes, uint32_t *out_len, const std::string &x) {
     if (*out_len < encodeSize(x)) return false; 
-    for(int i=0; i<x.length(); i++){
+    for(decltype(x.length()) i=0; i<x.length(); i++){
       memcpy(&out_bytes[i],&x[i], 1);
     }
     out_bytes[x.length()] = (uint8_t)'\0';
@@ -132,7 +134,7 @@ template <> struct Protocol<std::string> {
   }
   static bool Decode(uint8_t *in_bytes, uint32_t *in_len, std::string &x) {
     int term_index = -1;
-    for(int i=0; i<*in_len; i++){
+    for(uint32_t i=0; i<*in_len; i++){
       if((char)in_bytes[i] == '\0') {
         term_index = i;
         break;
@@ -168,7 +170,7 @@ template <typename T> struct Protocol<std::vector<T>> {
     unsigned short vec_length;
     memcpy(&vec_length, in_bytes, sizeof(unsigned short));
     uint32_t remaining_len = *in_len - sizeof(unsigned short);
-    for(int i = 0; i < vec_length; i++) {
+    for(decltype(vec_length) i = 0; i < vec_length; i++) {
       if(remaining_len <= 0) return false;
       unsigned int buffer_index = *in_len - remaining_len;
       uint32_t temp_len = remaining_len;
@@ -186,84 +188,145 @@ template <typename T> struct Protocol<std::vector<T>> {
 
 // TASK2: Client-side
 // CASE 1: handle single T-type param
-template <typename T>
+template <typename ...ParamsT>
 class Param : public BaseParams {
-  T p;
- public:
-  Param(T p) : p(p) {}
-
-  bool Encode(uint8_t *out_bytes, uint32_t *out_len) const override {
-    return Protocol<T>::Encode(out_bytes, out_len, p);
+protected:
+  bool Encode_recursive(uint8_t *out_bytes, uint32_t *out_len) const {
+    return true;
   }
-};
-// CASE 2: handle no (void) param
-template <>
-class Param<void> : public BaseParams {
- public:
+public:
   Param() {}
 
   bool Encode(uint8_t *out_bytes, uint32_t *out_len) const override {
     return true;
   }
 };
+template <typename T, typename ...ParamsT>
+class Param<T, ParamsT...> : public Param<ParamsT...> {
+  T p;
+protected:
+  bool Encode_recursive(uint8_t *out_bytes, uint32_t *out_len) const {
+    uint32_t temp_out_len = *out_len;
+    if(!Protocol<T>::Encode(out_bytes, &temp_out_len, p)) {
+      std::cout << "Param: returning false" << std::endl;
+      return false;
+    }
+    *out_len -= temp_out_len;
+    return Param<ParamsT...>::Encode_recursive(out_bytes+temp_out_len, out_len);
+  }
+public:
+  Param(T p, ParamsT ...params) : Param<ParamsT...>(params...), p(p) {}
+
+  bool Encode(uint8_t *out_bytes, uint32_t *out_len) const override {
+    uint32_t rem_out_len = *out_len;
+    bool b = this->Encode_recursive(out_bytes, &rem_out_len);
+    *out_len -= rem_out_len;
+    if(!b) 
+      std::cout << "Param: false" << std::endl;
+    return b;
+  }
+};
 
 // TASK2: Server-side
-// TODO: implement Procedure<Svc, void, ParamT>. CASE: void func(ParamT)
-// CASE 1: ReturnT func(ParamT u)
-template <typename Svc, typename ReturnT, typename ParamT>
+template <typename Svc, typename ReturnT, typename ... ParamT>
 class Procedure : public BaseProcedure {
-  bool DecodeAndExecute(uint8_t *in_bytes, uint32_t *in_len,
-                        uint8_t *out_bytes, uint32_t *out_len) override final {
-    // -------- x is a param --------
-    ParamT x;
-    // This function is similar to Decode. We need to return false if buffer
-    // isn't large enough, or fatal error happens during parsing.
-    if (!Protocol<ParamT>::Decode(in_bytes, in_len, x)) {
-       return false;
-    }
-    // Now we cast the function pointer func_ptr to its original type.
-    //
-    // This incomplete solution only works for this type of member functions.
-    using FunctionPointerType = ReturnT (Svc::*)(ParamT);
+protected:
+  template <typename ...ParamsT>
+  bool DecodeAndExecute_recursive(uint8_t *in_bytes, uint32_t *in_len,
+                        uint8_t *out_bytes, uint32_t *out_len, ParamsT ...params) {
+    // std::cout << "base DecodeAndExecute_recursive" << std::endl;
+    std::cout << "base DecodeAndExecute_recursive: " << *out_len << ", ";
+    using FunctionPointerType = ReturnT (Svc::*)(ParamsT...);
     auto p = func_ptr.To<FunctionPointerType>();
-    ReturnT result = (((Svc *) instance)->*p)(x);
+    ReturnT result = (((Svc *) instance)->*p)(params...);
     if (!Protocol<ReturnT>::Encode(out_bytes, out_len, result)) {
-      // out_len should always be large enough so this branch shouldn't be
-      // taken. However just in case, we return a fatal error here.
+      std::cout << "base DecodeAndExecute_recursive: FALSE" << std::endl;
       return false;
     }
+    std::cout << *out_len << std::endl;
     return true;
   }
-};
-// CASE 2: ReturnT func(void)
-template <typename Svc, typename ReturnT>
-class Procedure<Svc, ReturnT, void> : public BaseProcedure {
+public:
   bool DecodeAndExecute(uint8_t *in_bytes, uint32_t *in_len,
-                        uint8_t *out_bytes, uint32_t *out_len) override final {
+                        uint8_t *out_bytes, uint32_t *out_len) override {
+    // std::cout << "start no params" << std::endl;
+    std::cout << "start: ";
+    std::cout << *in_len << ", " << *out_len << ".. ";
+    std::cout << sizeof...(ParamT) << std::endl;
 
-    // Now we cast the function pointer func_ptr to its original type.
-    //
-    // This incomplete solution only works for this type of member functions.
-    using FunctionPointerType = ReturnT (Svc::*)();
-    auto p = func_ptr.To<FunctionPointerType>();
-    ReturnT result = (((Svc *) instance)->*p)();
-    if (!Protocol<ReturnT>::Encode(out_bytes, out_len, result)) {
-      // out_len should always be large enough so this branch shouldn't be
-      // taken. However just in case, we return a fatal error here.
-      return false;
-    }
-    return true;
+    *in_len = 0;
+
+    return this->DecodeAndExecute_recursive(in_bytes, in_len, out_bytes, out_len);
   }
 };
-// CASE 3: void func(void)
+
 template <typename Svc>
-class Procedure<Svc, void, void> : public BaseProcedure {
-  bool DecodeAndExecute(uint8_t *in_bytes, uint32_t *in_len,
-                        uint8_t *out_bytes, uint32_t *out_len) override final {
-    using FunctionPointerType = void (Svc::*)();
+class Procedure<Svc, void> : public BaseProcedure {
+protected:
+  template <typename ...ParamsT>
+  bool DecodeAndExecute_recursive(uint8_t *in_bytes, uint32_t *in_len,
+                        uint8_t *out_bytes, uint32_t *out_len, ParamsT ...params) {
+    std::cout << "base void DecodeAndExecute_recursive" << std::endl;
+    using FunctionPointerType = void (Svc::*)(ParamsT...);
     auto p = func_ptr.To<FunctionPointerType>();
-    (((Svc *) instance)->*p)();
+    (((Svc *) instance)->*p)(params...);
+    *out_len = 0;
     return true;
+  }
+public:
+  bool DecodeAndExecute(uint8_t *in_bytes, uint32_t *in_len,
+                        uint8_t *out_bytes, uint32_t *out_len) override {
+    // std::cout << "start no params" << std::endl;
+    std::cout << "start: ";
+    std::cout << *in_len << ", " << *out_len << ".. ";
+    *in_len = 0;
+
+    return this->DecodeAndExecute_recursive(in_bytes, in_len, out_bytes, out_len);
+  }
+};
+
+template <typename Svc, typename ReturnT, typename P, typename ...ParamT>
+class Procedure<Svc, ReturnT, P, ParamT...> : public Procedure<Svc, ReturnT, ParamT...> {
+protected:
+  template <typename ...ParamsT>
+  bool DecodeAndExecute_recursive(uint8_t *in_bytes, uint32_t *in_len,
+                        uint8_t *out_bytes, uint32_t *out_len, ParamsT ...params) {
+    P x;
+    int status = -4;
+    std::cout << abi::__cxa_demangle(typeid(P).name(),0,0,&status) << std::endl;
+    uint32_t temp_in_len = *in_len;
+    if (!Protocol<P>::Decode(in_bytes, &temp_in_len, x)) {
+      std::cout << "Procedure: returning false" << std::endl;
+      return false;
+    }
+    *in_len -= temp_in_len;
+    std::cout << *in_len << ", " << *out_len << ".. ";
+    std::cout << sizeof...(ParamsT)+1
+    << ", " << sizeof...(ParamT) << std::endl;
+    
+    return Procedure<Svc, ReturnT, ParamT...>
+    ::DecodeAndExecute_recursive(in_bytes+temp_in_len, in_len, out_bytes, out_len, params..., x);
+  }
+public:
+  bool DecodeAndExecute(uint8_t *in_bytes, uint32_t *in_len,
+                        uint8_t *out_bytes, uint32_t *out_len) override {
+    int status = -4;
+
+    std::cout << "start: ";
+    std::cout << *in_len << ", " << *out_len << ".. ";
+    std::cout << 0 << ", " << sizeof...(ParamT)+1 << std::endl;
+
+    std::cout << "Return:" << std::endl;
+    std::cout << abi::__cxa_demangle(typeid(ReturnT).name(),0,0,&status) << std::endl;
+
+    std::cout << "Params:" << std::endl;
+
+
+    uint32_t rem_in_len = *in_len;
+    bool ret = this->DecodeAndExecute_recursive(in_bytes, &rem_in_len, out_bytes, out_len);
+    *in_len -= rem_in_len;
+    std::cout << *in_len << ", " << *out_len << std::endl;
+    return ret;
   }
 };
 
@@ -292,36 +355,23 @@ class Result<void> : public BaseResult {
 class Client : public BaseClient {
  public:
 //  CASE 1: ReturnT func(ParamT)
-  template <typename Svc, typename ReturnT, typename ParamT>
-  Result<ReturnT> *Call(Svc *svc, ReturnT (Svc::*func)(ParamT), ParamT x) {
+  template <typename Svc, typename ReturnT, typename ...ParamT>
+  Result<ReturnT> *Call(Svc *svc, ReturnT (Svc::*func)(ParamT...), ParamT ...params) {
     // Lookup instance and function IDs.
+    std::cout << "Begin Client::Call" << std::endl;
     int instance_id = svc->instance_id();
     int func_id = svc->LookupExportFunction(MemberFunctionPtr::From(func));
 
     auto result = new Result<ReturnT>();
 
     // ---------  handle params here ---------
-    if (!Send(instance_id, func_id, new Param<ParamT>(x), result)) {
+    if (!Send(instance_id, func_id, new Param<ParamT...>(params...), result)) {
       // Fail to send, then delete the result and return nullptr.
+      std::cout << "Client::Call returns null" << std::endl;
       delete result;
       return nullptr;
     }
-    return result;
-  }
-//  CASE 2: ReturnT func()
-  template <typename Svc, typename ReturnT>
-  Result<ReturnT> *Call(Svc *svc, ReturnT (Svc::*func)()) {
-    // Lookup instance and function IDs.
-    int instance_id = svc->instance_id();
-    int func_id = svc->LookupExportFunction(MemberFunctionPtr::From(func));
-
-    auto result = new Result<ReturnT>();
-
-    if (!Send(instance_id, func_id, new Param<void>(), result)) {
-      // Fail to send, then delete the result and return nullptr.
-      delete result;
-      return nullptr;
-    }
+    std::cout << "End Client::Call" << std::endl;
     return result;
   }
 };
@@ -330,13 +380,10 @@ class Client : public BaseClient {
 template <typename Svc>
 class Service : public BaseService {
  protected:
-  template <typename ReturnT>
-  void Export(ReturnT (Svc::*func)()) {
-    ExportRaw(MemberFunctionPtr::From(func), new Procedure<Svc, ReturnT, void>());
-  }
-  template <typename ReturnT, typename ParamT>
-  void Export(ReturnT (Svc::*func)(ParamT)) {
-    ExportRaw(MemberFunctionPtr::From(func), new Procedure<Svc, ReturnT, ParamT>());
+
+  template <typename ReturnT, typename ...ParamT>
+  void Export(ReturnT (Svc::*func)(ParamT...)) {
+    ExportRaw(MemberFunctionPtr::From(func), new Procedure<Svc, ReturnT, ParamT...>());
   }
 };
 
