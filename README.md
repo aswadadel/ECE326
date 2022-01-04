@@ -1,4 +1,5 @@
 # ECE326 Labs
+Programming Languages course labs which focus on analyzing different language paradigms and how to utilize each langauge's features
 ### Assignment 1: EasyDB Database Driver
 A Python database client which verifies a user-defined schema, performs CRUD opertions, and abstracts encoding/decoding. <br>
 Entry file: [\_\_init\_\_.py](https://github.com/aswadadel/ECE326/blob/master/asst1/easydb/__init__.py)
